@@ -1,0 +1,249 @@
+<p align="center">
+  <h1 align="center">XCrawl</h1>
+  <p align="center">
+    Open-source web crawling and scraping platform.<br/>
+    Self-hosted, free forever, no limits.
+  </p>
+  <p align="center">
+    <a href="https://github.com/MrMirhan/xcrawl/actions"><img src="https://github.com/MrMirhan/xcrawl/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+    <a href="https://github.com/MrMirhan/xcrawl/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License" /></a>
+    <a href="https://github.com/MrMirhan/xcrawl/stargazers"><img src="https://img.shields.io/github/stars/MrMirhan/xcrawl" alt="Stars" /></a>
+  </p>
+</p>
+
+---
+
+**XCrawl** turns any website into clean, structured data. Scrape single pages, crawl entire sites, extract structured data with AI, search the web — all from a single API or a beautiful dashboard.
+
+> **No credits. No rate limits. No vendor lock-in.** Self-host it and own your data.
+
+---
+
+## Features
+
+### Core API
+
+- **Scrape** — Single URL to markdown, HTML, text, links, images, or screenshot
+- **Crawl** — Recursive site crawl with depth limits, path regex filters, concurrency control
+- **Batch** — Scrape hundreds of URLs concurrently with retry
+- **Map** — Discover all URLs on a site (sitemap + link extraction)
+- **Search** — Web search + full-page scraping via self-hosted SearXNG
+- **Extract** — AI-powered structured extraction with JSON schema or natural language prompt
+
+### Crawler Engine
+
+- **Smart engine selection** — Auto-picks Cheerio (fast) or Playwright (JS rendering)
+- **JS auto-detection** — Retries with browser if static scraping returns empty content
+- **Anti-blocking** — Stealth fingerprinting, user-agent rotation, session/proxy pool
+- **Popup auto-dismiss** — Cookie banners, modals, GDPR dialogs handled automatically
+- **Paywall detection** — Skip or flag paywalled pages
+- **robots.txt** — Respects crawl rules and delay directives
+- **Document parsing** — PDF and DOCX files extracted to markdown
+- **URL rewriting** — Reddit, Medium, Twitter redirected to scrape-friendly mirrors
+- **Archive fallback** — Wayback Machine used when all engines fail
+- **Canonical dedup** — Avoids scraping the same page twice
+
+### Dashboard
+
+- **Playground** — 5 modes (Scrape, Crawl, Map, Search, Extract) with full settings
+- **Live progress** — WebSocket-powered real-time crawl updates
+- **Multi-format viewer** — Switch between Markdown, HTML, Text, Links, Images, JSON per result
+- **Downloads** — Per-page or full ZIP export with folder structure
+- **Schedules** — Cron-based recurring crawls with content change detection
+- **10 extraction templates** — News, Product, Blog, Social Media, Job, Recipe, and more
+- **Dark mode** — System-aware with manual toggle
+- **Mobile responsive** — Collapsible sidebar, touch-friendly
+
+### Multi-User
+
+- **Auth** — Email/password signup with JWT
+- **Per-user LLM** — Bring your own API key (OpenAI, Anthropic, Ollama, OpenRouter)
+- **Per-user proxies** — Personal proxy list with batch import and liveness testing
+- **Per-user search** — Custom SearXNG instance URL
+- **API keys** — Create, list (masked), and revoke
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) 20+
+- [pnpm](https://pnpm.io/) 10+
+- [Docker](https://www.docker.com/) & Docker Compose
+
+### 1. Clone and install
+
+```bash
+git clone https://github.com/MrMirhan/xcrawl.git
+cd xcrawl
+pnpm install
+```
+
+### 2. Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set the **required** values:
+
+```env
+JWT_SECRET=<generate with: openssl rand -hex 32>
+ADMIN_PASSWORD=<choose a strong password>
+```
+
+### 3. Start infrastructure
+
+```bash
+docker compose -f docker-compose.dev.yml up -d
+```
+
+Starts PostgreSQL, Redis, and SearXNG.
+
+### 4. Set up database
+
+```bash
+pnpm run db:push
+pnpm run db:seed
+```
+
+### 5. Install Playwright browser
+
+```bash
+pnpm --filter @xcrawl/crawler exec playwright install chromium
+```
+
+### 6. Start development
+
+```bash
+pnpm run dev
+```
+
+| Service | URL |
+|---------|-----|
+| Dashboard | [http://localhost:3000](http://localhost:3000) |
+| API | [http://localhost:3001](http://localhost:3001) |
+| Swagger Docs | [http://localhost:3001/api/docs](http://localhost:3001/api/docs) |
+
+Login with the email and password you set in `.env`.
+
+---
+
+## API Reference
+
+All endpoints require authentication via `Authorization: Bearer <jwt>` or `X-API-Key: <key>`.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/scrape` | Scrape a single URL (sync) |
+| `POST` | `/api/v1/crawl` | Start recursive crawl (async) |
+| `GET` | `/api/v1/crawl/:id` | Poll crawl status and results |
+| `DELETE` | `/api/v1/crawl/:id` | Cancel a running crawl |
+| `POST` | `/api/v1/batch/scrape` | Batch scrape multiple URLs (async) |
+| `POST` | `/api/v1/map` | Discover all URLs on a site |
+| `POST` | `/api/v1/search` | Search the web + scrape results |
+| `POST` | `/api/v1/extract` | AI-powered structured extraction |
+| `POST` | `/api/v1/user/signup` | Create account |
+| `POST` | `/api/v1/user/signin` | Sign in and get JWT |
+| `GET` | `/api/v1/user/settings` | Get per-user settings |
+| `PATCH` | `/api/v1/user/settings` | Update LLM/proxy/search config |
+| `GET` | `/api/v1/jobs` | List all jobs |
+| `GET` | `/api/v1/jobs/stats` | Dashboard statistics |
+| `POST` | `/api/v1/schedules` | Create recurring schedule |
+
+Interactive docs at `/api/docs` (Swagger UI).
+
+### Example: Scrape a URL
+
+```bash
+curl -X POST http://localhost:3001/api/v1/scrape \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{
+    "url": "https://example.com",
+    "formats": ["markdown", "links", "images"]
+  }'
+```
+
+### Example: Crawl a site
+
+```bash
+curl -X POST http://localhost:3001/api/v1/crawl \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{
+    "url": "https://docs.example.com",
+    "maxPages": 50,
+    "formats": ["markdown"],
+    "includePaths": ["/docs/.*"],
+    "excludePaths": ["/blog/.*"]
+  }'
+```
+
+---
+
+## Architecture
+
+```
+xcrawl/
+├── apps/
+│   ├── api/              # NestJS 11 — REST API, WebSocket, BullMQ workers
+│   └── web/              # Next.js 16 — Dashboard, Playground
+├── packages/
+│   ├── crawler/          # Crawlee engine (Cheerio + Playwright)
+│   ├── shared/           # Shared types, constants, DTOs
+│   └── db/               # Prisma schema, migrations, seed
+├── docker/               # Dockerfiles, SearXNG config
+├── docker-compose.yml    # Production deployment
+└── docker-compose.dev.yml # Local development
+```
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **API** | NestJS 11, BullMQ, Prisma 7, Passport JWT, Socket.IO |
+| **Crawler** | Crawlee 3 (Cheerio + Playwright), Turndown, Readability, pdf-parse |
+| **Dashboard** | Next.js 16, React 19, Tailwind CSS v4, shadcn/ui, Lucide Icons |
+| **Database** | PostgreSQL 17 |
+| **Queue/Cache** | Redis 7, BullMQ |
+| **Search** | SearXNG (self-hosted) |
+| **Storage** | Local filesystem or Garage (S3-compatible) |
+| **Auth** | JWT (Passport), bcrypt |
+| **Build** | pnpm workspaces, Turborepo |
+
+---
+
+## Production Deployment
+
+```bash
+# Set all env vars in .env (especially JWT_SECRET, POSTGRES_PASSWORD)
+docker compose up -d
+```
+
+Services: API (3001), Dashboard (3000), PostgreSQL, Redis, SearXNG, optional Garage (S3).
+
+Workers scale independently via `deploy.replicas` in `docker-compose.yml`.
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, coding guidelines, and PR process.
+
+## Security
+
+If you discover a security vulnerability, please report it privately instead of opening a public issue.
+
+## License
+
+**[AGPL-3.0](LICENSE)**
+
+You can self-host and use XCrawl freely. All forks, derivative works, and services built on XCrawl must also be open-source under AGPL-3.0.
+
+---
+
+<p align="center">
+  Built with Crawlee, NestJS, Next.js, and a lot of coffee.
+</p>

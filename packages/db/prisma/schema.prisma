@@ -1,0 +1,230 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  apiKeys   ApiKey[]
+  jobs      Job[]       @relation("UserJobs")
+  schedules Schedule[]
+  webhooks  WebhookConfig[]
+  settings  UserSettings?
+
+  @@map("users")
+}
+
+model UserSettings {
+  id     String @id @default(cuid())
+  userId String @unique @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Per-user proxy list (JSON array of proxy URLs)
+  proxyUrls String[] @map("proxy_urls")
+
+  // Per-user LLM configuration
+  llmProvider String? @map("llm_provider")
+  llmApiKey   String? @map("llm_api_key")
+  llmModel    String? @map("llm_model")
+  llmBaseUrl  String? @map("llm_base_url")
+
+  // Per-user SearXNG
+  searxngUrl String? @map("searxng_url")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("user_settings")
+}
+
+model ApiKey {
+  id        String    @id @default(cuid())
+  name      String
+  key       String    @unique
+  hashedKey String    @map("hashed_key")
+  lastUsed  DateTime? @map("last_used")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  active    Boolean   @default(true)
+
+  userId String? @map("user_id")
+  user   User?   @relation(fields: [userId], references: [id])
+
+  jobs Job[]
+
+  @@index([userId])
+  @@map("api_keys")
+}
+
+model Job {
+  id       String    @id @default(cuid())
+  type     JobType
+  status   JobStatus @default(PENDING)
+  priority Int       @default(0)
+
+  url    String?
+  urls   String[]
+  config Json
+
+  resultCount Int     @default(0) @map("result_count")
+  error       String?
+  metadata    Json?
+
+  apiKeyId String? @map("api_key_id")
+  apiKey   ApiKey? @relation(fields: [apiKeyId], references: [id])
+
+  userId String? @map("user_id")
+  user   User?   @relation("UserJobs", fields: [userId], references: [id])
+
+  results           JobResult[]
+  webhookDeliveries WebhookDelivery[]
+
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([type])
+  @@index([userId])
+  @@index([apiKeyId])
+  @@index([createdAt])
+  @@map("jobs")
+}
+
+model JobResult {
+  id    String @id @default(cuid())
+  jobId String @map("job_id")
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  url        String
+  statusCode Int? @map("status_code")
+
+  markdown String? @db.Text
+  html     String? @db.Text
+  rawHtml  String? @db.Text @map("raw_html")
+  text     String? @db.Text
+  json     Json?
+  links    String[]
+  images   String[]
+
+  screenshotPath String? @map("screenshot_path")
+  storagePaths   Json?   @map("storage_paths")
+  extractedData  Json?   @map("extracted_data")
+
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([jobId])
+  @@index([url])
+  @@map("job_results")
+}
+
+model WebhookConfig {
+  id      String   @id @default(cuid())
+  url     String
+  events  String[]
+  secret  String?
+  active  Boolean  @default(true)
+  headers Json?
+
+  userId String? @map("user_id")
+  user   User?   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  deliveries WebhookDelivery[]
+
+  @@index([userId])
+  @@map("webhook_configs")
+}
+
+model WebhookDelivery {
+  id        String        @id @default(cuid())
+  webhookId String        @map("webhook_id")
+  webhook   WebhookConfig @relation(fields: [webhookId], references: [id])
+  jobId     String        @map("job_id")
+  job       Job           @relation(fields: [jobId], references: [id])
+
+  event      String
+  payload    Json
+  statusCode Int?     @map("status_code")
+  response   String?  @db.Text
+  success    Boolean  @default(false)
+  attempts   Int      @default(0)
+  lastAttempt DateTime? @map("last_attempt")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([webhookId])
+  @@index([jobId])
+  @@map("webhook_deliveries")
+}
+
+model ProxyConfig {
+  id        String    @id @default(cuid())
+  url       String
+  protocol  String    @default("http")
+  country   String?
+  active    Boolean   @default(true)
+  lastCheck DateTime? @map("last_check")
+  failCount Int       @default(0) @map("fail_count")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@map("proxy_configs")
+}
+
+model Schedule {
+  id          String    @id @default(cuid())
+  name        String
+  type        JobType
+  cron        String
+  config      Json
+  active      Boolean   @default(true)
+  lastRunAt   DateTime? @map("last_run_at")
+  lastJobId   String?   @map("last_job_id")
+  nextRunAt   DateTime? @map("next_run_at")
+  runCount    Int       @default(0) @map("run_count")
+
+  enableChangeDetection Boolean @default(false) @map("enable_change_detection")
+  lastContentHash       String? @map("last_content_hash")
+  webhookUrl            String? @map("webhook_url")
+
+  userId String? @map("user_id")
+  user   User?   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([active])
+  @@index([nextRunAt])
+  @@index([userId])
+  @@map("schedules")
+}
+
+enum JobType {
+  SCRAPE
+  CRAWL
+  BATCH_SCRAPE
+  MAP
+  EXTRACT
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+  PARTIAL
+}

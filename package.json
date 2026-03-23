@@ -1,0 +1,41 @@
+{
+  "name": "xcrawl",
+  "author": {
+    "name": "MrMirhan",
+    "url": "https://github.com/MrMirhan",
+    "email": "me@example.com"
+  },
+  "version": "1.0.0",
+  "private": true,
+  "description": "Open-source web crawling and scraping platform",
+  "license": "AGPL-3.0",
+  "packageManager": "pnpm@10.29.3",
+  "scripts": {
+    "dev": "dotenv -- turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "db:generate": "dotenv -- pnpm --filter @xcrawl/db generate",
+    "db:migrate": "dotenv -- pnpm --filter @xcrawl/db migrate",
+    "db:push": "dotenv -- pnpm --filter @xcrawl/db push",
+    "db:seed": "dotenv -- pnpm --filter @xcrawl/db seed"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "bcrypt",
+      "esbuild",
+      "prisma",
+      "@prisma/client",
+      "@prisma/engines",
+      "sharp",
+      "msgpackr-extract",
+      "@nestjs/core",
+      "@scarf/scarf"
+    ]
+  },
+  "devDependencies": {
+    "dotenv-cli": "^11.0.0",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.0"
+  }
+}

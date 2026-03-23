@@ -1,0 +1,19 @@
+import { Module } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
+import { ConfigModule } from '@nestjs/config';
+import { CrawlController } from './crawl.controller';
+import { CrawlService } from './crawl.service';
+import { CrawlProcessor } from './crawl.processor';
+import { WebhookModule } from '../webhook/webhook.module';
+import { QUEUES } from '@xcrawl/shared';
+
+@Module({
+  imports: [
+    BullModule.registerQueue({ name: QUEUES.CRAWL }),
+    ConfigModule,
+    WebhookModule,
+  ],
+  controllers: [CrawlController],
+  providers: [CrawlService, CrawlProcessor],
+})
+export class CrawlModule {}

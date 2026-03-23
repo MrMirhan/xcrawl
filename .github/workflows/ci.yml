@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: xcrawl
+          POSTGRES_PASSWORD: xcrawl
+          POSTGRES_DB: xcrawl
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://xcrawl:xcrawl@localhost:5432/xcrawl
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-only-not-for-production
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm run db:generate
+
+      - name: Build all packages
+        run: pnpm run build
+
+      - name: Run unit tests
+        run: pnpm --filter @xcrawl/api test
+
+      - name: Run e2e tests
+        run: pnpm --filter @xcrawl/api test:e2e

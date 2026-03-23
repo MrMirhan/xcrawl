@@ -1,0 +1,36 @@
+node_modules/
+**/dist/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# Prisma v7 generated client
+packages/db/src/generated/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Crawlee runtime storage
+**/storage/
+data/
+/tmp/xcrawl*/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Prisma
+packages/db/prisma/migrations/**/migration_lock.toml
+
+# Docker volumes
+postgres-data/
+redis-data/
+minio-data/
