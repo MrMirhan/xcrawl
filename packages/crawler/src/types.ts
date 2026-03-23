@@ -84,6 +84,7 @@ export interface CrawlOptions {
   engine?: 'auto' | 'cheerio' | 'playwright';
   dismissPopups?: boolean;
   skipPaywalls?: boolean;
+  _excludeUrls?: string[];
 }
 
 export interface CrawlCallbacks {

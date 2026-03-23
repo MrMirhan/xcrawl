@@ -53,7 +53,7 @@ export class CrawlProcessor extends WorkerHost {
         onPageComplete: async (result: ScrapeOutput) => {
           let screenshotPath: string | undefined;
           if (result.screenshot) {
-            screenshotPath = await this.storage.saveScreenshot(jobId, result.screenshot);
+            screenshotPath = await this.storage.saveScreenshot(jobId, result.screenshot, result.url);
           }
 
           await this.prisma.jobResult.create({

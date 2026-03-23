@@ -72,6 +72,8 @@ export const apiClient = {
     api(`/jobs/${id}`, { apiKey }),
   getJobStats: (apiKey: string) =>
     api('/jobs/stats', { apiKey }),
+  cancelAllJobs: (apiKey: string) =>
+    api('/jobs/cancel-all', { method: 'POST', apiKey }),
 
   // Auth
   createApiKey: (name: string) =>

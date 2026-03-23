@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Param, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiSecurity } from '@nestjs/swagger';
 import { JobService } from './job.service';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
@@ -26,6 +26,11 @@ export class JobController {
       userId: req.userId,
       apiKeyId: req.apiKeyId,
     });
+  }
+
+  @Post('cancel-all')
+  async cancelAll(@Req() req: { apiKeyId?: string; userId?: string }) {
+    return this.jobService.cancelAllRunning({ userId: req.userId, apiKeyId: req.apiKeyId });
   }
 
   @Get('stats')

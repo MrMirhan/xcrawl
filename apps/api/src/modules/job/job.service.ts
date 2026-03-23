@@ -109,4 +109,17 @@ export class JobService {
       successRate: total > 0 ? Math.round((completed / total) * 100) : 0,
     };
   }
+
+  async cancelAllRunning(auth: Auth = {}) {
+    const where: Record<string, unknown> = { status: { in: ['RUNNING', 'PENDING'] } };
+    if (auth.userId) where.userId = auth.userId;
+    else if (auth.apiKeyId) where.apiKeyId = auth.apiKeyId;
+
+    const result = await this.prisma.job.updateMany({
+      where,
+      data: { status: 'CANCELLED', completedAt: new Date() },
+    });
+
+    return { success: true, cancelled: result.count };
+  }
 }

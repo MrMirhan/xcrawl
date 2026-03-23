@@ -68,7 +68,9 @@ export class ScrapeService implements OnModuleInit, OnModuleDestroy {
       // Add extra buffer when LLM extraction is requested (it can take 60s+ on top of crawl time)
       const baseTimeout = dto.timeout ?? 30_000;
       const hasExtract = dto.extractPrompt || dto.extractSchema;
-      const waitTimeout = hasExtract ? baseTimeout + 120_000 : baseTimeout + 10_000;
+      // Playwright screenshots need more time (browser launch + render + capture)
+      const extraBuffer = hasExtract ? 120_000 : wantsScreenshot ? 30_000 : 10_000;
+      const waitTimeout = baseTimeout + extraBuffer;
       const result = await bullJob.waitUntilFinished(this.queueEvents, waitTimeout);
 
       // Cache the result (skip if it has screenshot data — too large)

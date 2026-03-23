@@ -487,9 +487,10 @@ export class CrawlerEngine {
     const maxConcurrency = options.maxConcurrency ?? this.options.maxConcurrency;
 
     let pagesProcessed = 0;
-    const shouldUseBrowser = engine === 'playwright';
+    const shouldUseBrowser = engine === 'playwright' || (engine === 'auto' && formats.includes('screenshot'));
     const seenPaths = new Set<string>(); // for ignoreQueryParameters dedup
     const seenCanonicals = new Set<string>(); // canonical URL dedup
+    const excludeUrls = new Set(options._excludeUrls ?? []); // already-crawled URLs (resume)
 
     const parsedUrl = new URL(options.url);
     const baseUrl = parsedUrl.origin;
@@ -517,6 +518,12 @@ export class CrawlerEngine {
       if (pagesProcessed >= maxPages) return;
 
       const reqUrl = ctx.request.url;
+
+      // Skip already-crawled URLs (resume after restart)
+      if (excludeUrls.has(reqUrl)) {
+        log.debug(`Skipping (already crawled): ${reqUrl}`);
+        return;
+      }
 
       // robots.txt check
       if (!isUrlAllowed(reqUrl, robotsRules)) {
@@ -626,8 +633,13 @@ export class CrawlerEngine {
       }
 
       if (formats.includes('screenshot') && ctx.page) {
-        const buffer = await ctx.page.screenshot({ fullPage: true });
-        result.screenshot = buffer.toString('base64');
+        try {
+          const buffer = await ctx.page.screenshot({ fullPage: true });
+          result.screenshot = buffer.toString('base64');
+          log.info(`Screenshot captured for ${reqUrl} (${buffer.length} bytes)`);
+        } catch (err) {
+          log.warning(`Screenshot failed for ${reqUrl}: ${err}`);
+        }
       }
 
       const output: ScrapeOutput = {
@@ -645,13 +657,14 @@ export class CrawlerEngine {
       await callbacks.onPageComplete(output);
       callbacks.onProgress(pagesProcessed, maxPages, reqUrl);
 
-      // Enqueue discovered links
+      // Enqueue discovered links (stop when close to limit)
       if (pagesProcessed < maxPages) {
+        const remainingSlots = maxPages - pagesProcessed;
         const strategy = options.allowExternalLinks ? 'all'
           : options.allowSubdomains ? 'same-domain'
           : 'same-hostname';
 
-        await ctx.enqueueLinks({ strategy });
+        await ctx.enqueueLinks({ strategy, limit: remainingSlots });
       }
     };
 

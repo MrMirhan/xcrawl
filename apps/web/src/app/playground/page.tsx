@@ -315,6 +315,11 @@ export default function PlaygroundPage() {
   // Collect extracted data from scrape (single) or crawl (array of results)
   const extractedData = singleData?.extractedData
     ?? (arrayData?.some(r => r.extractedData) ? arrayData.filter(r => r.extractedData).map(r => ({ url: r.url, extractedData: r.extractedData })) : undefined);
+  const screenshotBase64 = singleData?.screenshot as string | undefined;
+  // Strip screenshot from JSON display to keep it readable
+  const displayResult = result && screenshotBase64
+    ? { ...result, data: { ...(singleData ?? {}), screenshot: `[base64 image, ${Math.round((screenshotBase64.length * 3) / 4 / 1024)}KB]` } }
+    : result;
 
   return (
     <div className="space-y-6">
@@ -915,7 +920,7 @@ export default function PlaygroundPage() {
 
               <TabsContent value="json">
                 <pre className="bg-muted p-4 rounded-lg text-xs font-mono overflow-auto max-h-125 leading-relaxed">
-                  {JSON.stringify(result, null, 2)}
+                  {JSON.stringify(displayResult, null, 2)}
                 </pre>
               </TabsContent>
 
@@ -1034,6 +1039,20 @@ export default function PlaygroundPage() {
                 </TabsContent>
               )}
             </Tabs>
+
+            {/* Screenshot render */}
+            {screenshotBase64 && (
+              <div className="mt-4 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Screenshot</p>
+                <div className="border border-border rounded-lg overflow-hidden">
+                  <img
+                    src={`data:image/png;base64,${screenshotBase64}`}
+                    alt="Page screenshot"
+                    className="w-full h-auto"
+                  />
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

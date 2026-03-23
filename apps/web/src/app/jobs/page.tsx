@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { RefreshCw, ExternalLink, Loader2, Inbox } from 'lucide-react';
+import { RefreshCw, ExternalLink, Loader2, Inbox, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -71,10 +71,26 @@ export default function JobsPage() {
             {polling && <span className="text-primary ml-2 text-xs">(Auto-refreshing...)</span>}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => loadJobs()} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          {jobs.some((j) => j.status === 'RUNNING' || j.status === 'PENDING') && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={async () => {
+                const apiKey = localStorage.getItem('xcrawl-api-key') || '';
+                await apiClient.cancelAllJobs(apiKey);
+                loadJobs();
+              }}
+            >
+              <XCircle className="h-4 w-4" />
+              Cancel All
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={() => loadJobs()} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <Card>
