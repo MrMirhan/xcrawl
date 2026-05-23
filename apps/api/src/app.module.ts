@@ -30,6 +30,7 @@ import { UserAuthModule } from './modules/user-auth/user-auth.module';
 import { SearchModule } from './modules/search/search.module';
 import { ScheduleModule as CrawlScheduleModule } from './modules/schedule/schedule.module';
 import { CleanupModule } from './modules/cleanup/cleanup.module';
+import { McpModule } from './modules/mcp/mcp.module';
 import { MetricsMiddleware } from './common/middleware/metrics.middleware';
 
 @Module({
@@ -68,7 +69,11 @@ import { MetricsMiddleware } from './common/middleware/metrics.middleware';
               'req.body.apiKey',
             ],
             autoLogging: {
-              ignore: (req: IncomingMessage) => req.url === '/api/v1/health' || req.url === '/metrics',
+              ignore: (req: IncomingMessage) =>
+                req.url === '/api/v1/health' ||
+                req.url === '/metrics' ||
+                req.url === '/mcp' ||
+                (typeof req.url === 'string' && req.url.startsWith('/mcp')),
             },
           },
         };
@@ -115,6 +120,7 @@ import { MetricsMiddleware } from './common/middleware/metrics.middleware';
     SearchModule,
     CrawlScheduleModule,
     CleanupModule,
+    McpModule,
   ],
   providers: [
     makeCounterProvider({

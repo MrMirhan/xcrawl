@@ -13,6 +13,6 @@ import { QUEUES } from '@xcrawl/shared';
   ],
   controllers: [ExtractController],
   providers: [ExtractService, ExtractProcessor, LlmService],
-  exports: [LlmService],
+  exports: [LlmService, ExtractService],
 })
 export class ExtractModule {}

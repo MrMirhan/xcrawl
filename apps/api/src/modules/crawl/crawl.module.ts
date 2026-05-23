@@ -15,5 +15,6 @@ import { QUEUES } from '@xcrawl/shared';
   ],
   controllers: [CrawlController],
   providers: [CrawlService, CrawlProcessor],
+  exports: [CrawlService],
 })
 export class CrawlModule {}
