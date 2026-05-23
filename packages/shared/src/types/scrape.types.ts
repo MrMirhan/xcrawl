@@ -53,6 +53,7 @@ export interface ScrapeResult {
   images?: string[];
   screenshot?: string;
   json?: unknown;
+  extractedData?: unknown;
   metadata: {
     title?: string;
     description?: string;

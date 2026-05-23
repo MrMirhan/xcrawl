@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
-import type { ScrapeSettings } from './types';
+import type { PlaygroundResult, ScrapeSettings } from './types';
 
 interface SearchModeProps {
   apiKey: string;
@@ -15,7 +15,7 @@ interface SearchModeProps {
   url: string;
   loading: boolean;
   setLoading: (v: boolean) => void;
-  setResult: (r: Record<string, unknown> | null) => void;
+  setResult: (r: PlaygroundResult | null) => void;
   setError: (e: string) => void;
   scrapeSettings: ScrapeSettings;
   setScrapeSettings: React.Dispatch<React.SetStateAction<ScrapeSettings>>;
@@ -49,7 +49,7 @@ export function SearchMode({
         limit: searchLimit,
         formats: scrapeSettings.formats,
       }, apiKey);
-      setResult(res as unknown as Record<string, unknown>);
+      setResult(res);
       setLoading(false);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Request failed';

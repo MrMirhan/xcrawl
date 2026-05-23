@@ -5,6 +5,7 @@ import { Globe, Loader2, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiClient } from '@/lib/api-client';
+import type { PlaygroundResult } from './types';
 
 interface MapModeProps {
   apiKey: string;
@@ -12,7 +13,7 @@ interface MapModeProps {
   setUrl: (url: string) => void;
   loading: boolean;
   setLoading: (v: boolean) => void;
-  setResult: (r: Record<string, unknown> | null) => void;
+  setResult: (r: PlaygroundResult | null) => void;
   setError: (e: string) => void;
   resetResultState: () => void;
   toast: { success: (msg: string) => void; error: (msg: string) => void; info: (msg: string) => void };
@@ -38,7 +39,7 @@ export function MapMode({
         search: mapSearch || undefined,
         limit: mapLimit,
       }, apiKey);
-      setResult(res as unknown as Record<string, unknown>);
+      setResult(res);
       setLoading(false);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Request failed';

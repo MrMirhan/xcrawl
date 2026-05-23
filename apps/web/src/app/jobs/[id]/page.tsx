@@ -15,6 +15,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { apiClient } from '@/lib/api-client';
 import { formatDate } from '@/lib/utils';
+import type { JobDetails, JobResultRecord } from '@xcrawl/shared';
+
+interface CrawlConfig {
+  maxPages?: number;
+  [key: string]: unknown;
+}
 
 const statusVariant: Record<string, BadgeProps['variant']> = {
   COMPLETED: 'success',
@@ -49,7 +55,7 @@ export default function JobDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const toast = useToast();
-  const [job, setJob] = useState<Record<string, unknown> | null>(null);
+  const [job, setJob] = useState<JobDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewTab, setViewTab] = useState('results');
   const [expandedResult, setExpandedResult] = useState<string | null>(null);
@@ -64,7 +70,7 @@ export default function JobDetailPage() {
     if (!key || !id) return;
     try {
       const res = await apiClient.getJob(id, key);
-      setJob(res as unknown as Record<string, unknown>);
+      setJob(res);
     } catch (e) {
       console.error(e);
     } finally {
@@ -82,8 +88,7 @@ export default function JobDetailPage() {
   // Live polling for running/pending jobs
   useEffect(() => {
     if (!job || !storedApiKey) return;
-    const status = job.status as string;
-    if (!['RUNNING', 'PENDING'].includes(status)) return;
+    if (!['RUNNING', 'PENDING'].includes(job.status)) return;
 
     const interval = setInterval(() => loadJob(storedApiKey), 2000);
     return () => clearInterval(interval);
@@ -111,7 +116,7 @@ export default function JobDetailPage() {
 
   const handleDownloadAll = async (format: string) => {
     if (!job) return;
-    const jobResults = (job.results as Array<Record<string, unknown>>) ?? [];
+    const jobResults = job.results ?? [];
     setDownloadMode(null);
 
     if (format === 'zip') {
@@ -124,19 +129,19 @@ export default function JobDetailPage() {
       }, null, 2));
 
       // crawled_urls.txt
-      zip.file('crawled_urls.txt', jobResults.map((r) => r.url as string).filter(Boolean).join('\n'));
+      zip.file('crawled_urls.txt', jobResults.map((r) => r.url).filter(Boolean).join('\n'));
 
       // all_links.txt (deduplicated)
       const allLinks = new Set<string>();
       jobResults.forEach((r) => {
-        if (Array.isArray(r.links)) (r.links as string[]).forEach((l) => allLinks.add(l));
+        r.links?.forEach((l) => allLinks.add(l));
       });
       if (allLinks.size > 0) zip.file('all_links.txt', Array.from(allLinks).join('\n'));
 
       // all_images.txt (deduplicated)
       const allImages = new Set<string>();
       jobResults.forEach((r) => {
-        if (Array.isArray(r.images)) (r.images as string[]).forEach((img) => allImages.add(img));
+        r.images?.forEach((img) => allImages.add(img));
       });
       if (allImages.size > 0) zip.file('all_images.txt', Array.from(allImages).join('\n'));
 
@@ -147,18 +152,18 @@ export default function JobDetailPage() {
       const imagesFolder = zip.folder('images');
 
       jobResults.forEach((r, i) => {
-        const name = safeName(r.url as string || `page_${i}`);
-        if (typeof r.markdown === 'string' && r.markdown.length > 0) {
+        const name = safeName(r.url || `page_${i}`);
+        if (r.markdown && r.markdown.length > 0) {
           markdownFolder?.file(`${name}.md`, r.markdown);
         }
-        if (typeof r.html === 'string' && r.html.length > 0) {
+        if (r.html && r.html.length > 0) {
           htmlFolder?.file(`${name}.html`, r.html);
         }
-        if (typeof r.text === 'string' && r.text.length > 0) {
+        if (r.text && r.text.length > 0) {
           textFolder?.file(`${name}.txt`, r.text);
         }
-        if (Array.isArray(r.images) && r.images.length > 0) {
-          imagesFolder?.file(`${name}.txt`, (r.images as string[]).join('\n'));
+        if (r.images && r.images.length > 0) {
+          imagesFolder?.file(`${name}.txt`, r.images.join('\n'));
         }
       });
 
@@ -181,7 +186,7 @@ export default function JobDetailPage() {
         break;
       case 'markdown': {
         const allMd = jobResults
-          .filter((r) => typeof r.markdown === 'string')
+          .filter((r) => r.markdown !== null)
           .map((r) => `# ${r.url}\n\n${r.markdown}`)
           .join('\n\n---\n\n');
         downloadText(allMd || 'No markdown content', `xcrawl-${id}.md`);
@@ -189,7 +194,7 @@ export default function JobDetailPage() {
       }
       case 'html': {
         const allHtml = jobResults
-          .filter((r) => typeof r.html === 'string')
+          .filter((r) => r.html !== null)
           .map((r) => `<!-- ${r.url} -->\n${r.html}`)
           .join('\n\n');
         downloadText(allHtml || 'No HTML content', `xcrawl-${id}.html`);
@@ -197,7 +202,7 @@ export default function JobDetailPage() {
       }
       case 'text': {
         const allText = jobResults
-          .filter((r) => typeof r.text === 'string')
+          .filter((r) => r.text !== null)
           .map((r) => `=== ${r.url} ===\n\n${r.text}`)
           .join('\n\n---\n\n');
         downloadText(allText || 'No text content', `xcrawl-${id}.txt`);
@@ -206,7 +211,7 @@ export default function JobDetailPage() {
       case 'links': {
         const allLinks = new Set<string>();
         jobResults.forEach((r) => {
-          if (Array.isArray(r.links)) (r.links as string[]).forEach((l) => allLinks.add(l));
+          r.links?.forEach((l) => allLinks.add(l));
         });
         downloadText(Array.from(allLinks).join('\n'), `xcrawl-${id}_links.txt`);
         break;
@@ -214,44 +219,44 @@ export default function JobDetailPage() {
       case 'images': {
         const allImages = new Set<string>();
         jobResults.forEach((r) => {
-          if (Array.isArray(r.images)) (r.images as string[]).forEach((img) => allImages.add(img));
+          r.images?.forEach((img) => allImages.add(img));
         });
         downloadText(Array.from(allImages).join('\n'), `xcrawl-${id}_images.txt`);
         break;
       }
       case 'urls': {
-        const urls = jobResults.map((r) => r.url as string).filter(Boolean);
+        const urls = jobResults.map((r) => r.url).filter(Boolean);
         downloadText(urls.join('\n'), `xcrawl-${id}_urls.txt`);
         break;
       }
     }
   };
 
-  const handleDownloadResult = (result: Record<string, unknown>, format: string) => {
-    const url = (result.url as string) || 'result';
+  const handleDownloadResult = (result: JobResultRecord, format: string) => {
+    const url = result.url || 'result';
     const safeName = url.replace(/https?:\/\//, '').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 50);
 
     switch (format) {
       case 'markdown':
-        downloadText(result.markdown as string, `${safeName}.md`);
+        downloadText(result.markdown ?? '', `${safeName}.md`);
         break;
       case 'html':
-        downloadText(result.html as string, `${safeName}.html`);
+        downloadText(result.html ?? '', `${safeName}.html`);
         break;
       case 'rawHtml':
-        downloadText(result.rawHtml as string, `${safeName}.raw.html`);
+        downloadText(result.rawHtml ?? '', `${safeName}.raw.html`);
         break;
       case 'text':
-        downloadText(result.text as string, `${safeName}.txt`);
+        downloadText(result.text ?? '', `${safeName}.txt`);
         break;
       case 'json':
         downloadJson(result, `${safeName}.json`);
         break;
       case 'links':
-        downloadText((result.links as string[]).join('\n'), `${safeName}_links.txt`);
+        downloadText((result.links ?? []).join('\n'), `${safeName}_links.txt`);
         break;
       case 'images':
-        downloadText((result.images as string[]).join('\n'), `${safeName}_images.txt`);
+        downloadText((result.images ?? []).join('\n'), `${safeName}_images.txt`);
         break;
     }
   };
@@ -273,13 +278,13 @@ export default function JobDetailPage() {
     );
   }
 
-  const status = job.status as string;
-  const type = job.type as string;
-  const results = (job.results as Array<Record<string, unknown>>) ?? [];
-  const resultCount = (job._count as { results: number })?.results ?? results.length;
+  const status = job.status;
+  const type = job.type;
+  const results = job.results ?? [];
+  const resultCount = job._count?.results ?? results.length;
   const isRunning = ['RUNNING', 'PENDING'].includes(status);
-  const config = job.config as Record<string, unknown> | undefined;
-  const maxPages = (config?.maxPages as number) ?? 0;
+  const config = job.config as CrawlConfig | null | undefined;
+  const maxPages = config?.maxPages ?? 0;
 
   // Detect available formats across all results
   const availableFormats = new Set<string>();
@@ -288,8 +293,8 @@ export default function JobDetailPage() {
     if (r.html) availableFormats.add('html');
     if (r.rawHtml) availableFormats.add('rawHtml');
     if (r.text) availableFormats.add('text');
-    if (Array.isArray(r.links) && r.links.length > 0) availableFormats.add('links');
-    if (Array.isArray(r.images) && r.images.length > 0) availableFormats.add('images');
+    if (r.links && r.links.length > 0) availableFormats.add('links');
+    if (r.images && r.images.length > 0) availableFormats.add('images');
   }
 
   return (
@@ -369,7 +374,7 @@ export default function JobDetailPage() {
         )}
 
         <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {formatDate(job.createdAt as string)}</span>
+          <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {formatDate(job.createdAt)}</span>
           <span className="flex items-center gap-1"><FileText className="h-3 w-3" /> {resultCount} results</span>
           {availableFormats.size > 0 && (
             <span className="flex items-center gap-1">
@@ -403,16 +408,16 @@ export default function JobDetailPage() {
               </Card>
             ) : (
               results.map((result, i) => {
-                const resultId = (result.id as string) || String(i);
+                const resultId = result.id || String(i);
                 const isExpanded = expandedResult === resultId;
                 const currentView = resultViewMode[resultId] || 'markdown';
 
                 // Determine what formats this result has
-                const hasMarkdown = typeof result.markdown === 'string' && result.markdown.length > 0;
-                const hasHtml = typeof result.html === 'string' && result.html.length > 0;
-                const hasText = typeof result.text === 'string' && result.text.length > 0;
-                const hasLinks = Array.isArray(result.links) && result.links.length > 0;
-                const hasImages = Array.isArray(result.images) && result.images.length > 0;
+                const hasMarkdown = !!result.markdown && result.markdown.length > 0;
+                const hasHtml = !!result.html && result.html.length > 0;
+                const hasText = !!result.text && result.text.length > 0;
+                const hasLinks = !!result.links && result.links.length > 0;
+                const hasImages = !!result.images && result.images.length > 0;
 
                 return (
                   <Card key={resultId}>
@@ -420,9 +425,9 @@ export default function JobDetailPage() {
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <CardTitle className="text-sm font-mono truncate">
-                            {result.url as string}
+                            {result.url}
                           </CardTitle>
-                          <a href={result.url as string} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                          <a href={result.url} target="_blank" rel="noopener noreferrer" className="shrink-0">
                             <ExternalLink className="h-3 w-3 text-muted-foreground hover:text-foreground" />
                           </a>
                         </div>
@@ -454,8 +459,8 @@ export default function JobDetailPage() {
                         {hasMarkdown && <Badge variant="secondary" className="text-[9px] px-1.5 py-0">MD</Badge>}
                         {hasHtml && <Badge variant="secondary" className="text-[9px] px-1.5 py-0">HTML</Badge>}
                         {hasText && <Badge variant="secondary" className="text-[9px] px-1.5 py-0">TXT</Badge>}
-                        {hasLinks && <Badge variant="secondary" className="text-[9px] px-1.5 py-0">{(result.links as string[]).length} links</Badge>}
-                        {hasImages && <Badge variant="secondary" className="text-[9px] px-1.5 py-0">{(result.images as string[]).length} imgs</Badge>}
+                        {hasLinks && <Badge variant="secondary" className="text-[9px] px-1.5 py-0">{result.links?.length ?? 0} links</Badge>}
+                        {hasImages && <Badge variant="secondary" className="text-[9px] px-1.5 py-0">{result.images?.length ?? 0} imgs</Badge>}
                       </div>
                     </CardHeader>
 
@@ -502,22 +507,22 @@ export default function JobDetailPage() {
                         {/* Content based on selected format */}
                         {currentView === 'markdown' && hasMarkdown && (
                           <pre className="bg-muted p-3 rounded-lg text-xs font-mono overflow-auto max-h-80 whitespace-pre-wrap leading-relaxed">
-                            {result.markdown as string}
+                            {result.markdown}
                           </pre>
                         )}
                         {currentView === 'html' && hasHtml && (
                           <pre className="bg-muted p-3 rounded-lg text-xs font-mono overflow-auto max-h-80 leading-relaxed">
-                            {result.html as string}
+                            {result.html}
                           </pre>
                         )}
                         {currentView === 'text' && hasText && (
                           <pre className="bg-muted p-3 rounded-lg text-xs overflow-auto max-h-80 whitespace-pre-wrap leading-relaxed">
-                            {result.text as string}
+                            {result.text}
                           </pre>
                         )}
                         {currentView === 'links' && hasLinks && (
                           <div className="bg-muted p-3 rounded-lg max-h-80 overflow-auto space-y-0.5">
-                            {(result.links as string[]).map((link) => (
+                            {result.links?.map((link) => (
                               <div key={link} className="text-xs font-mono">
                                 <a href={link} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                                   {link}
@@ -528,7 +533,7 @@ export default function JobDetailPage() {
                         )}
                         {currentView === 'images' && hasImages && (
                           <div className="bg-muted p-3 rounded-lg max-h-80 overflow-auto space-y-0.5">
-                            {(result.images as string[]).map((img) => (
+                            {result.images?.map((img) => (
                               <div key={img} className="text-xs font-mono">
                                 <a href={img} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                                   {img}

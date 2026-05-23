@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
 import { ExtractSettings, defaultExtractConfig, type ExtractConfig } from '@/components/playground/extract-settings';
-import { formatOptions, defaultCrawlSettings, type CrawlSettings } from './types';
+import { formatOptions, defaultCrawlSettings, type CrawlSettings, type PlaygroundResult } from './types';
 
 interface CrawlModeProps {
   apiKey: string;
@@ -18,7 +18,7 @@ interface CrawlModeProps {
   setUrl: (url: string) => void;
   loading: boolean;
   setLoading: (v: boolean) => void;
-  setResult: (r: Record<string, unknown> | null) => void;
+  setResult: (r: PlaygroundResult | null) => void;
   setError: (e: string) => void;
   setPollingJobId: (id: string | null) => void;
   setPollStatus: (s: string) => void;

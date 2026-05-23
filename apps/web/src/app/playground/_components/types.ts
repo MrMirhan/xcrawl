@@ -1,4 +1,20 @@
+import type { MapResponse, SearchResponse } from '@xcrawl/shared';
+import type {
+  ScrapeApiResponse,
+  CrawlStatusResponse,
+  BatchStatusResponse,
+  ExtractStatusResponse,
+} from '@/lib/api-client';
+
 export type PlaygroundMode = 'scrape' | 'crawl' | 'map' | 'extract' | 'search';
+
+export type PlaygroundResult =
+  | ScrapeApiResponse
+  | MapResponse
+  | SearchResponse
+  | CrawlStatusResponse
+  | BatchStatusResponse
+  | ExtractStatusResponse;
 
 export const formatOptions = ['markdown', 'html', 'links', 'images', 'screenshot', 'text', 'rawHtml'];
 

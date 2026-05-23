@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiClient } from '@/lib/api-client';
 import { ExtractSettings, type ExtractConfig } from '@/components/playground/extract-settings';
+import type { PlaygroundResult } from './types';
 
 interface ExtractModeProps {
   apiKey: string;
@@ -13,7 +14,7 @@ interface ExtractModeProps {
   setUrl: (url: string) => void;
   loading: boolean;
   setLoading: (v: boolean) => void;
-  setResult: (r: Record<string, unknown> | null) => void;
+  setResult: (r: PlaygroundResult | null) => void;
   setError: (e: string) => void;
   setPollingJobId: (id: string | null) => void;
   setPollStatus: (s: string) => void;

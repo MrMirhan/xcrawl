@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
 import { ExtractSettings, defaultExtractConfig, type ExtractConfig } from '@/components/playground/extract-settings';
-import { formatOptions, type ScrapeSettings } from './types';
+import { formatOptions, type PlaygroundResult, type ScrapeSettings } from './types';
 
 interface ScrapeModeProps {
   apiKey: string;
@@ -19,7 +19,7 @@ interface ScrapeModeProps {
   setUrl: (url: string) => void;
   loading: boolean;
   setLoading: (v: boolean) => void;
-  setResult: (r: Record<string, unknown> | null) => void;
+  setResult: (r: PlaygroundResult | null) => void;
   setError: (e: string) => void;
   scrapeSettings: ScrapeSettings;
   setScrapeSettings: React.Dispatch<React.SetStateAction<ScrapeSettings>>;
@@ -73,7 +73,7 @@ export function ScrapeMode({
         }
       }
       const res = await apiClient.scrape(scrapeBody, apiKey);
-      setResult(res as unknown as Record<string, unknown>);
+      setResult(res);
       setLoading(false);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Request failed';

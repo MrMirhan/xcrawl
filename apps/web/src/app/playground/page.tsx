@@ -7,13 +7,16 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, type CrawlStatusResponse, type BatchStatusResponse, type ExtractStatusResponse } from '@/lib/api-client';
+import type { ScrapeResult } from '@xcrawl/shared';
 import { ScrapeMode } from './_components/scrape-mode';
 import { CrawlMode } from './_components/crawl-mode';
 import { MapMode } from './_components/map-mode';
 import { ExtractMode } from './_components/extract-mode';
 import { SearchMode } from './_components/search-mode';
-import { defaultScrapeSettings, type PlaygroundMode, type ScrapeSettings } from './_components/types';
+import { defaultScrapeSettings, type PlaygroundMode, type PlaygroundResult, type ScrapeSettings } from './_components/types';
+
+type JobLikeResponse = CrawlStatusResponse | BatchStatusResponse | ExtractStatusResponse;
 
 export default function PlaygroundPage() {
   const toast = useToast();
@@ -26,7 +29,7 @@ export default function PlaygroundPage() {
   const [selectedMapUrls, setSelectedMapUrls] = useState<Set<string>>(new Set());
 
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<Record<string, unknown> | null>(null);
+  const [result, setResult] = useState<PlaygroundResult | null>(null);
   const [error, setError] = useState('');
   const [resultTab, setResultTab] = useState('json');
   const [apiKey] = useState(() =>
@@ -48,20 +51,26 @@ export default function PlaygroundPage() {
 
     const pollInterval = setInterval(async () => {
       try {
-        const endpoint = mode === 'crawl' ? 'getCrawlStatus' : mode === 'extract' ? 'getExtractStatus' : 'getBatchStatus';
-        const status = await apiClient[endpoint](pollingJobId, apiKey) as unknown as Record<string, unknown>;
-        const jobStatus = status.status as string;
+        const status: JobLikeResponse =
+          mode === 'crawl'
+            ? await apiClient.getCrawlStatus(pollingJobId, apiKey)
+            : mode === 'extract'
+              ? await apiClient.getExtractStatus(pollingJobId, apiKey)
+              : await apiClient.getBatchStatus(pollingJobId, apiKey);
+        const jobStatus = status.status;
 
         // Extract progress info
-        const progress = status.progress as Record<string, unknown> | undefined;
-        const completed = Number(progress?.completed ?? status.completed ?? 0);
-        const total = String(progress?.total ?? status.total ?? '?');
+        const completed = 'progress' in status
+          ? status.progress.completed
+          : status.completed;
+        const total = 'progress' in status
+          ? status.progress.total
+          : status.total;
         setPollStatus(`${jobStatus} — ${completed}/${total} pages`);
 
         // Track crawled URLs from results
-        const data = status.data as Array<Record<string, unknown>> | undefined;
-        if (data && data.length > 0) {
-          const urls = data.map((r) => r.url as string).filter(Boolean);
+        if (status.data && status.data.length > 0) {
+          const urls = status.data.map((r) => r.url).filter(Boolean);
           setCrawledUrls(urls);
         }
 
@@ -72,7 +81,7 @@ export default function PlaygroundPage() {
           setResult(status);
           setResultTab('json');
           if (jobStatus === 'FAILED') {
-            const errMsg = `Crawl failed: ${status.error || 'Unknown error'}`;
+            const errMsg = `Crawl failed: ${'error' in status && typeof status.error === 'string' ? status.error : 'Unknown error'}`;
             setError(errMsg);
             toast.error(errMsg);
           } else if (jobStatus === 'COMPLETED') {
@@ -87,19 +96,34 @@ export default function PlaygroundPage() {
     return () => clearInterval(pollInterval);
   }, [pollingJobId, apiKey, mode, toast]);
 
-  const data = result?.data as Record<string, unknown> | Record<string, unknown>[] | undefined;
-  const singleData = data && !Array.isArray(data) ? data : undefined;
-  const arrayData = Array.isArray(data) ? data as Record<string, unknown>[] : undefined;
-  const markdown = singleData?.markdown as string | undefined;
-  const html = singleData?.html as string | undefined;
-  const links = (singleData?.links ?? (result?.links as string[] | undefined)) as string[] | undefined;
+  // Narrow result to ScrapeResult-shaped single data (scrape mode)
+  const singleData: ScrapeResult | undefined =
+    result && 'data' in result && result.data && !Array.isArray(result.data)
+      ? (result.data as ScrapeResult)
+      : undefined;
+  // Narrow to array-shaped data (search/crawl/batch/extract poll responses)
+  const arrayData: ReadonlyArray<{ url: string; extractedData?: unknown }> | undefined =
+    result && 'data' in result && Array.isArray(result.data)
+      ? (result.data as ReadonlyArray<{ url: string; extractedData?: unknown }>)
+      : undefined;
+  const markdown = singleData?.markdown;
+  const html = singleData?.html;
+  // Map response carries top-level links; scrape carries them inside data
+  const topLevelLinks: string[] | undefined =
+    result && 'links' in result && Array.isArray((result as { links?: unknown }).links)
+      ? (result as { links: string[] }).links
+      : undefined;
+  const links = singleData?.links ?? topLevelLinks;
   // Collect extracted data from scrape (single) or crawl (array of results)
-  const extractedData = singleData?.extractedData
-    ?? (arrayData?.some(r => r.extractedData) ? arrayData.filter(r => r.extractedData).map(r => ({ url: r.url, extractedData: r.extractedData })) : undefined);
-  const screenshotBase64 = singleData?.screenshot as string | undefined;
+  const extractedData =
+    singleData?.extractedData
+    ?? (arrayData?.some((r) => r.extractedData)
+      ? arrayData.filter((r) => r.extractedData).map((r) => ({ url: r.url, extractedData: r.extractedData }))
+      : undefined);
+  const screenshotBase64 = singleData?.screenshot;
   // Strip screenshot from JSON display to keep it readable
-  const displayResult = result && screenshotBase64
-    ? { ...result, data: { ...(singleData ?? {}), screenshot: `[base64 image, ${Math.round((screenshotBase64.length * 3) / 4 / 1024)}KB]` } }
+  const displayResult = result && screenshotBase64 && singleData
+    ? { ...result, data: { ...singleData, screenshot: `[base64 image, ${Math.round((screenshotBase64.length * 3) / 4 / 1024)}KB]` } }
     : result;
 
   const sharedModeProps = {
@@ -233,11 +257,11 @@ export default function PlaygroundPage() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">Result</CardTitle>
               <div className="flex items-center gap-2">
-                {typeof result.id === 'string' && (
+                {'id' in result && typeof result.id === 'string' && (
                   <Badge variant="outline" className="font-mono text-[10px]">{result.id}</Badge>
                 )}
                 <Badge variant="success">
-                  {result.success ? 'Success' : 'Done'}
+                  {'success' in result && result.success ? 'Success' : 'Done'}
                 </Badge>
               </div>
             </div>
