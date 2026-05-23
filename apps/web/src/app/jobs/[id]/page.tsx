@@ -64,7 +64,7 @@ export default function JobDetailPage() {
     if (!key || !id) return;
     try {
       const res = await apiClient.getJob(id, key);
-      setJob(res as Record<string, unknown>);
+      setJob(res as unknown as Record<string, unknown>);
     } catch (e) {
       console.error(e);
     } finally {

@@ -1,5 +1,51 @@
+import type {
+  ScrapeRequest,
+  ScrapeResult,
+  CrawlRequest,
+  BatchScrapeRequest,
+  MapRequest,
+  MapResponse,
+  ExtractRequest,
+  SearchRequest,
+  SearchResponse,
+  ApiKeySummary,
+  CreatedApiKey,
+  RevokeApiKeyResponse,
+  CreateApiKeyRequest,
+  WebhookConfig,
+  CreateWebhookRequest,
+  UpdateWebhookRequest,
+  WebhookMutationResponse,
+  Schedule,
+  CreateScheduleRequest,
+  UpdateScheduleRequest,
+  ScheduleMutationResponse,
+  ProxyConfig,
+  AddProxyRequest,
+  ProxyTestResult,
+  ProxyMutationResponse,
+  UserProfile,
+  UserSettings,
+  UpdateUserSettingsRequest,
+  TestLlmRequest,
+  TestLlmResponse,
+  JobListItem,
+  JobDetails,
+  JobResultRecord,
+  JobStats,
+  CancelAllJobsResponse,
+  Pagination,
+} from '@xcrawl/shared';
 import { API_BASE, STORAGE_KEYS } from './config';
 import { clearAuth } from './auth';
+
+export type {
+  UserSettings,
+  UpdateUserSettingsRequest as UpdateUserSettingsDto,
+  TestLlmRequest as TestLlmDto,
+  UpdateWebhookRequest as UpdateWebhookDto,
+  UpdateScheduleRequest as UpdateScheduleDto,
+};
 
 interface ApiOptions {
   apiKey?: string;
@@ -7,42 +53,75 @@ interface ApiOptions {
   method?: string;
 }
 
-export interface UserSettings {
-  llmProvider?: string;
-  llmModel?: string;
-  llmBaseUrl?: string;
-  llmApiKey?: string;
-  searxngUrl?: string;
-  proxyUrls?: string[];
+export interface ScrapeListResponse<T> {
+  data: T[];
+  pagination: Pagination;
 }
 
-export interface UpdateUserSettingsDto {
-  llmProvider?: string;
-  llmModel?: string;
-  llmBaseUrl?: string;
-  llmApiKey?: string;
-  searxngUrl?: string;
-  proxyUrls?: string[];
+export interface ScrapeApiResponse {
+  success: boolean;
+  data?: ScrapeResult;
+  cached?: boolean;
+  error?: string;
 }
 
-export interface TestLlmDto {
-  baseUrl?: string;
-  apiKey?: string;
-  model?: string;
+export interface JobCreatedResponse {
+  success: boolean;
+  id: string;
 }
 
-export interface UpdateWebhookDto {
-  url?: string;
-  events?: string[];
-  secret?: string;
-  active?: boolean;
+export interface CrawlStatusResponse {
+  id: string;
+  status: string;
+  progress: {
+    completed: number;
+    total: number;
+    currentUrl?: string;
+  };
+  data: Array<{
+    url: string;
+    markdown: string | null;
+    html: string | null;
+    links: string[];
+    images: string[];
+    statusCode: number | null;
+    metadata: unknown;
+    extractedData: unknown;
+    screenshotPath: string | null;
+  }>;
 }
 
-export interface UpdateScheduleDto {
-  name?: string;
-  cron?: string;
-  config?: Record<string, unknown>;
-  active?: boolean;
+export interface CrawlCancelResponse {
+  success: boolean;
+}
+
+export interface BatchStatusResponse {
+  id: string;
+  status: string;
+  completed: number;
+  total: number;
+  data: Array<{
+    url: string;
+    markdown: string | null;
+    statusCode: number | null;
+    metadata: unknown;
+  }>;
+}
+
+export interface ExtractStatusResponse {
+  id: string;
+  status: string;
+  completed: number;
+  total: number;
+  data: Array<{
+    url: string;
+    markdown: string | null;
+    extractedData: unknown;
+  }>;
+}
+
+export interface ExtractCancelResponse {
+  success: boolean;
 }
 
 function readStoredToken(): string | null {
@@ -50,14 +129,13 @@ function readStoredToken(): string | null {
   return localStorage.getItem(STORAGE_KEYS.TOKEN);
 }
 
-async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {
+async function request<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
 
   const key = options.apiKey || readStoredToken();
   if (key) {
-    // JWT tokens start with "eyJ"; everything else routes through X-API-Key.
     if (key.startsWith('eyJ')) {
       headers['Authorization'] = `Bearer ${key}`;
     } else {
@@ -80,125 +158,141 @@ async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {
   }
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ error: res.statusText }));
+    const error = (await res.json().catch(() => ({ error: res.statusText }))) as { error?: string };
     throw new Error(error.error || `API error: ${res.status}`);
   }
 
-  return res.json();
+  return res.json() as Promise<T>;
 }
 
 export const apiClient = {
   // Scrape
-  scrape: (body: unknown, apiKey: string) =>
-    api('/scrape', { body, apiKey }),
+  scrape: (body: ScrapeRequest | Record<string, unknown>, apiKey: string): Promise<ScrapeApiResponse> =>
+    request<ScrapeApiResponse>('/scrape', { body, apiKey }),
 
   // Crawl
-  startCrawl: (body: unknown, apiKey: string) =>
-    api('/crawl', { body, apiKey }),
-  getCrawlStatus: (id: string, apiKey: string) =>
-    api(`/crawl/${id}`, { apiKey }),
-  getCrawlResults: (id: string, query: { page?: number; limit?: number } = {}, apiKey?: string) => {
+  startCrawl: (body: CrawlRequest | Record<string, unknown>, apiKey: string): Promise<JobCreatedResponse> =>
+    request<JobCreatedResponse>('/crawl', { body, apiKey }),
+  getCrawlStatus: (id: string, apiKey: string): Promise<CrawlStatusResponse> =>
+    request<CrawlStatusResponse>(`/crawl/${id}`, { apiKey }),
+  getCrawlResults: (
+    id: string,
+    query: { page?: number; limit?: number } = {},
+    apiKey?: string,
+  ): Promise<ScrapeListResponse<JobResultRecord>> => {
     const params = new URLSearchParams();
     if (query.page !== undefined) params.set('page', String(query.page));
     if (query.limit !== undefined) params.set('limit', String(query.limit));
     const qs = params.toString();
-    return api(`/crawl/${id}/results${qs ? `?${qs}` : ''}`, { apiKey });
+    return request<ScrapeListResponse<JobResultRecord>>(
+      `/crawl/${id}/results${qs ? `?${qs}` : ''}`,
+      { apiKey },
+    );
   },
-  cancelCrawl: (id: string, apiKey: string) =>
-    api(`/crawl/${id}`, { method: 'DELETE', apiKey }),
+  cancelCrawl: (id: string, apiKey: string): Promise<CrawlCancelResponse> =>
+    request<CrawlCancelResponse>(`/crawl/${id}`, { method: 'DELETE', apiKey }),
 
   // Batch
-  startBatch: (body: unknown, apiKey: string) =>
-    api('/batch/scrape', { body, apiKey }),
-  getBatchStatus: (id: string, apiKey: string) =>
-    api(`/batch/scrape/${id}`, { apiKey }),
+  startBatch: (body: BatchScrapeRequest | Record<string, unknown>, apiKey: string): Promise<JobCreatedResponse> =>
+    request<JobCreatedResponse>('/batch/scrape', { body, apiKey }),
+  getBatchStatus: (id: string, apiKey: string): Promise<BatchStatusResponse> =>
+    request<BatchStatusResponse>(`/batch/scrape/${id}`, { apiKey }),
 
   // Map
-  map: (body: unknown, apiKey: string) =>
-    api('/map', { body, apiKey }),
+  map: (body: MapRequest, apiKey: string): Promise<MapResponse> =>
+    request<MapResponse>('/map', { body, apiKey }),
 
   // Extract
-  startExtract: (body: unknown, apiKey: string) =>
-    api('/extract', { body, apiKey }),
-  getExtractStatus: (id: string, apiKey: string) =>
-    api(`/extract/${id}`, { apiKey }),
-  cancelExtract: (id: string, apiKey: string) =>
-    api(`/extract/${id}`, { method: 'DELETE', apiKey }),
+  startExtract: (body: ExtractRequest | Record<string, unknown>, apiKey: string): Promise<JobCreatedResponse> =>
+    request<JobCreatedResponse>('/extract', { body, apiKey }),
+  getExtractStatus: (id: string, apiKey: string): Promise<ExtractStatusResponse> =>
+    request<ExtractStatusResponse>(`/extract/${id}`, { apiKey }),
+  cancelExtract: (id: string, apiKey: string): Promise<ExtractCancelResponse> =>
+    request<ExtractCancelResponse>(`/extract/${id}`, { method: 'DELETE', apiKey }),
 
   // Jobs
-  listJobs: (params: string, apiKey: string) =>
-    api(`/jobs?${params}`, { apiKey }),
-  getJob: (id: string, apiKey: string) =>
-    api(`/jobs/${id}`, { apiKey }),
-  getJobStats: (apiKey: string) =>
-    api('/jobs/stats', { apiKey }),
-  cancelAllJobs: (apiKey: string) =>
-    api('/jobs/cancel-all', { method: 'POST', apiKey }),
+  listJobs: (params: string, apiKey: string): Promise<ScrapeListResponse<JobListItem>> =>
+    request<ScrapeListResponse<JobListItem>>(`/jobs?${params}`, { apiKey }),
+  getJob: (id: string, apiKey: string): Promise<JobDetails> =>
+    request<JobDetails>(`/jobs/${id}`, { apiKey }),
+  getJobStats: (apiKey: string): Promise<JobStats> =>
+    request<JobStats>('/jobs/stats', { apiKey }),
+  cancelAllJobs: (apiKey: string): Promise<CancelAllJobsResponse> =>
+    request<CancelAllJobsResponse>('/jobs/cancel-all', { method: 'POST', apiKey }),
+  getJobResults: (
+    id: string,
+    page: number,
+    limit: number,
+    apiKey: string,
+  ): Promise<ScrapeListResponse<JobResultRecord>> =>
+    request<ScrapeListResponse<JobResultRecord>>(
+      `/jobs/${id}/results?page=${page}&limit=${limit}`,
+      { apiKey },
+    ),
 
   // Auth
-  createApiKey: (name: string) =>
-    api('/auth/keys', { body: { name } }),
-  listApiKeys: () =>
-    api('/auth/keys'),
-  revokeApiKey: (id: string) =>
-    api(`/auth/keys/${id}`, { method: 'DELETE' }),
+  createApiKey: (name: string): Promise<CreatedApiKey> => {
+    const body: CreateApiKeyRequest = { name };
+    return request<CreatedApiKey>('/auth/keys', { body });
+  },
+  listApiKeys: (): Promise<ApiKeySummary[]> =>
+    request<ApiKeySummary[]>('/auth/keys'),
+  revokeApiKey: (id: string): Promise<RevokeApiKeyResponse> =>
+    request<RevokeApiKeyResponse>(`/auth/keys/${id}`, { method: 'DELETE' }),
 
   // Webhooks
-  createWebhook: (body: unknown, apiKey: string) =>
-    api('/webhooks', { body, apiKey }),
-  listWebhooks: (apiKey: string) =>
-    api('/webhooks', { apiKey }),
-  updateWebhook: (id: string, dto: UpdateWebhookDto, apiKey: string) =>
-    api(`/webhooks/${id}`, { method: 'PATCH', body: dto, apiKey }),
-  deleteWebhook: (id: string, apiKey: string) =>
-    api(`/webhooks/${id}`, { method: 'DELETE', apiKey }),
+  createWebhook: (body: CreateWebhookRequest, apiKey: string): Promise<WebhookConfig> =>
+    request<WebhookConfig>('/webhooks', { body, apiKey }),
+  listWebhooks: (apiKey: string): Promise<WebhookConfig[]> =>
+    request<WebhookConfig[]>('/webhooks', { apiKey }),
+  updateWebhook: (id: string, dto: UpdateWebhookRequest, apiKey: string): Promise<WebhookConfig> =>
+    request<WebhookConfig>(`/webhooks/${id}`, { method: 'PATCH', body: dto, apiKey }),
+  deleteWebhook: (id: string, apiKey: string): Promise<WebhookMutationResponse> =>
+    request<WebhookMutationResponse>(`/webhooks/${id}`, { method: 'DELETE', apiKey }),
 
   // Proxies
-  addProxy: (body: unknown, apiKey: string) =>
-    api('/proxies', { body, apiKey }),
-  listProxies: (apiKey: string) =>
-    api('/proxies', { apiKey }),
-  removeProxy: (id: string, apiKey: string) =>
-    api(`/proxies/${id}`, { method: 'DELETE', apiKey }),
-  testProxy: (url: string, apiKey: string) =>
-    api('/proxies/test', { body: { url }, apiKey }),
+  addProxy: (body: AddProxyRequest, apiKey: string): Promise<ProxyConfig> =>
+    request<ProxyConfig>('/proxies', { body, apiKey }),
+  listProxies: (apiKey: string): Promise<ProxyConfig[]> =>
+    request<ProxyConfig[]>('/proxies', { apiKey }),
+  removeProxy: (id: string, apiKey: string): Promise<ProxyMutationResponse> =>
+    request<ProxyMutationResponse>(`/proxies/${id}`, { method: 'DELETE', apiKey }),
+  testProxy: (url: string, apiKey: string): Promise<ProxyTestResult> =>
+    request<ProxyTestResult>('/proxies/test', { body: { url }, apiKey }),
 
   // Search
-  search: (body: unknown, apiKey: string) =>
-    api('/search', { body, apiKey }),
+  search: (body: SearchRequest, apiKey: string): Promise<SearchResponse> =>
+    request<SearchResponse>('/search', { body, apiKey }),
 
   // Schedules
-  createSchedule: (body: unknown, apiKey: string) =>
-    api('/schedules', { body, apiKey }),
-  listSchedules: (apiKey: string) =>
-    api('/schedules', { apiKey }),
-  getSchedule: (id: string, apiKey: string) =>
-    api(`/schedules/${id}`, { apiKey }),
-  updateSchedule: (id: string, dto: UpdateScheduleDto, apiKey: string) =>
-    api(`/schedules/${id}`, { method: 'PATCH', body: dto, apiKey }),
-  toggleSchedule: (id: string, apiKey: string) =>
-    api(`/schedules/${id}/toggle`, { method: 'PATCH', apiKey }),
-  deleteSchedule: (id: string, apiKey: string) =>
-    api(`/schedules/${id}`, { method: 'DELETE', apiKey }),
-
-  // Job results (paginated)
-  getJobResults: (id: string, page: number, limit: number, apiKey: string) =>
-    api(`/jobs/${id}/results?page=${page}&limit=${limit}`, { apiKey }),
+  createSchedule: (body: CreateScheduleRequest, apiKey: string): Promise<Schedule> =>
+    request<Schedule>('/schedules', { body, apiKey }),
+  listSchedules: (apiKey: string): Promise<Schedule[]> =>
+    request<Schedule[]>('/schedules', { apiKey }),
+  getSchedule: (id: string, apiKey: string): Promise<Schedule> =>
+    request<Schedule>(`/schedules/${id}`, { apiKey }),
+  updateSchedule: (id: string, dto: UpdateScheduleRequest, apiKey: string): Promise<Schedule> =>
+    request<Schedule>(`/schedules/${id}`, { method: 'PATCH', body: dto, apiKey }),
+  toggleSchedule: (id: string, apiKey: string): Promise<Schedule> =>
+    request<Schedule>(`/schedules/${id}/toggle`, { method: 'PATCH', apiKey }),
+  deleteSchedule: (id: string, apiKey: string): Promise<ScheduleMutationResponse> =>
+    request<ScheduleMutationResponse>(`/schedules/${id}`, { method: 'DELETE', apiKey }),
 
   // User profile/settings
-  getUserProfile: (): Promise<{ id: string; email: string; name?: string }> =>
-    api('/user/profile'),
+  getUserProfile: (): Promise<UserProfile> =>
+    request<UserProfile>('/user/profile'),
   getUserSettings: (): Promise<UserSettings> =>
-    api('/user/settings'),
-  updateUserSettings: (dto: UpdateUserSettingsDto): Promise<UserSettings> =>
-    api('/user/settings', { method: 'PATCH', body: dto }),
-  testLLM: (dto: TestLlmDto): Promise<{ success: boolean; error?: string }> =>
-    api('/user/test-llm', { method: 'POST', body: dto }),
+    request<UserSettings>('/user/settings'),
+  updateUserSettings: (dto: UpdateUserSettingsRequest): Promise<UserSettings> =>
+    request<UserSettings>('/user/settings', { method: 'PATCH', body: dto }),
+  testLLM: (dto: TestLlmRequest): Promise<TestLlmResponse> =>
+    request<TestLlmResponse>('/user/test-llm', { method: 'POST', body: dto }),
 
   // Storage
   getScreenshotUrl: (jobId: string): string =>
     `${API_BASE}/api/v1/storage/screenshots/${jobId}`,
 
   // Health
-  health: () => api('/health'),
+  health: (): Promise<{ status: string }> =>
+    request<{ status: string }>('/health'),
 };

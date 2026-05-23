@@ -49,7 +49,7 @@ export default function PlaygroundPage() {
     const pollInterval = setInterval(async () => {
       try {
         const endpoint = mode === 'crawl' ? 'getCrawlStatus' : mode === 'extract' ? 'getExtractStatus' : 'getBatchStatus';
-        const status = await apiClient[endpoint](pollingJobId, apiKey) as Record<string, unknown>;
+        const status = await apiClient[endpoint](pollingJobId, apiKey) as unknown as Record<string, unknown>;
         const jobStatus = status.status as string;
 
         // Extract progress info
@@ -321,8 +321,8 @@ export default function PlaygroundPage() {
                                 const res = await apiClient.startBatch(
                                   { urls: Array.from(selectedMapUrls), formats: scrapeSettings.formats },
                                   apiKey,
-                                ) as Record<string, unknown>;
-                                setPollingJobId(res.id as string);
+                                );
+                                setPollingJobId(res.id);
                                 setPollStatus('PENDING — Starting batch scrape...');
                                 setMode('scrape');
                               } catch (e) {

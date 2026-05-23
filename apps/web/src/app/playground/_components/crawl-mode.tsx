@@ -96,8 +96,8 @@ export function CrawlMode({
           try { crawlBody.extractSchema = JSON.parse(crawlExtract.schema); } catch { /* invalid schema */ }
         }
       }
-      const res = await apiClient.startCrawl(crawlBody, apiKey) as Record<string, unknown>;
-      const jobId = res.id as string;
+      const res = await apiClient.startCrawl(crawlBody, apiKey);
+      const jobId = res.id;
       setPollingJobId(jobId);
       setPollStatus('PENDING — Starting crawl...');
     } catch (e) {

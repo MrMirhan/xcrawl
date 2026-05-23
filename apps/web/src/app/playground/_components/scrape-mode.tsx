@@ -73,7 +73,7 @@ export function ScrapeMode({
         }
       }
       const res = await apiClient.scrape(scrapeBody, apiKey);
-      setResult(res as Record<string, unknown>);
+      setResult(res as unknown as Record<string, unknown>);
       setLoading(false);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Request failed';

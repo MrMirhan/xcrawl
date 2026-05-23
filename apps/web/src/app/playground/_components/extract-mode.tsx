@@ -40,8 +40,8 @@ export function ExtractMode({
       if (extractConfig.schema) {
         try { extractBody.schema = JSON.parse(extractConfig.schema); } catch { /* invalid schema */ }
       }
-      const res = await apiClient.startExtract(extractBody, apiKey) as Record<string, unknown>;
-      setPollingJobId(res.id as string);
+      const res = await apiClient.startExtract(extractBody, apiKey);
+      setPollingJobId(res.id);
       setPollStatus('PENDING — Starting extraction...');
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Request failed';
