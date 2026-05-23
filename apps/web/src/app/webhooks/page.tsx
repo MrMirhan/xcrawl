@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Plus, Trash2, Webhook, Bell } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,19 +24,20 @@ export default function WebhooksPage() {
   const [webhooks, setWebhooks] = useState<WebhookData[]>([]);
   const [newUrl, setNewUrl] = useState('');
   const [events, setEvents] = useState(['job.completed']);
-  const [apiKey, setApiKey] = useState('');
+  const [apiKey] = useState(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('xcrawl-api-key') || '' : '',
+  );
 
-  const loadWebhooks = (key: string) => {
+  const loadWebhooks = useCallback((key: string) => {
     if (key) {
       apiClient.listWebhooks(key).then((res) => setWebhooks(res as WebhookData[])).catch(console.error);
     }
-  };
-
-  useEffect(() => {
-    const key = localStorage.getItem('xcrawl-api-key') || '';
-    setApiKey(key);
-    loadWebhooks(key);
   }, []);
+
+  // Async load on mount — not derived state.
+  useEffect(() => {
+    loadWebhooks(apiKey);
+  }, [apiKey, loadWebhooks]);
 
   const handleCreate = async () => {
     if (!newUrl || !apiKey) return;

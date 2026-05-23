@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Globe, Loader2, Play, AlertCircle, FileText, Code, Link2, Image,
+  Globe, Loader2, Play, AlertCircle, FileText, Code, Link2, Image as ImageIcon,
   Settings2, Plus, X, ChevronDown, ChevronUp, Search,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -98,7 +98,9 @@ export default function PlaygroundPage() {
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState('');
   const [resultTab, setResultTab] = useState('json');
-  const [apiKey, setApiKey] = useState('');
+  const [apiKey] = useState(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('xcrawl-api-key') || '' : '',
+  );
   const [pollingJobId, setPollingJobId] = useState<string | null>(null);
   const [pollStatus, setPollStatus] = useState('');
   const [crawledUrls, setCrawledUrls] = useState<string[]>([]);
@@ -157,10 +159,6 @@ export default function PlaygroundPage() {
 
     return () => clearInterval(pollInterval);
   }, [pollingJobId, apiKey, mode]);
-
-  useEffect(() => {
-    setApiKey(localStorage.getItem('xcrawl-api-key') || '');
-  }, []);
 
   const updateCrawlSetting = <K extends keyof CrawlSettings>(key: K, value: CrawlSettings[K]) => {
     setCrawlSettings((prev) => ({ ...prev, [key]: value }));
@@ -387,7 +385,7 @@ export default function PlaygroundPage() {
                         {f === 'markdown' && <FileText className="h-3 w-3" />}
                         {f === 'html' && <Code className="h-3 w-3" />}
                         {f === 'links' && <Link2 className="h-3 w-3" />}
-                        {f === 'images' && <Image className="h-3 w-3" />}
+                        {f === 'images' && <ImageIcon className="h-3 w-3" />}
                         {f}
                       </button>
                     ))}
@@ -1045,6 +1043,8 @@ export default function PlaygroundPage() {
               <div className="mt-4 space-y-2">
                 <p className="text-xs font-medium text-muted-foreground">Screenshot</p>
                 <div className="border border-border rounded-lg overflow-hidden">
+                  {/* Data-URL screenshot with unknown dimensions; next/image needs static size. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={`data:image/png;base64,${screenshotBase64}`}
                     alt="Page screenshot"

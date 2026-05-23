@@ -2,7 +2,7 @@ import nextConfig from 'eslint-config-next/core-web-vitals';
 import tsParser from '@typescript-eslint/parser';
 import tsPlugin from '@typescript-eslint/eslint-plugin';
 
-export default [
+const config = [
   {
     ignores: ['.next/**', 'node_modules/**', 'next-env.d.ts', '**/*.tsbuildinfo'],
   },
@@ -28,3 +28,5 @@ export default [
     },
   },
 ];
+
+export default config;

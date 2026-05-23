@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -37,11 +37,7 @@ const navigation = [
 export function Sidebar() {
   const pathname = usePathname();
   const { theme, setTheme, resolvedTheme } = useTheme();
-  const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
-
-  useEffect(() => {
-    setUser(getUser());
-  }, []);
+  const [user] = useState<{ email: string; name?: string } | null>(() => getUser());
 
   const handleLogout = () => {
     clearAuth();

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { RefreshCw, ExternalLink, Loader2, Inbox, XCircle } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { apiClient } from '@/lib/api-client';
@@ -30,7 +30,8 @@ const statusVariant: Record<string, BadgeProps['variant']> = {
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
-  const [polling, setPolling] = useState(false);
+
+  const polling = jobs.some((j) => j.status === 'RUNNING' || j.status === 'PENDING');
 
   const loadJobs = useCallback(async (showSpinner = true) => {
     const apiKey = localStorage.getItem('xcrawl-api-key') || '';
@@ -47,19 +48,18 @@ export default function JobsPage() {
     }
   }, []);
 
+  // Initial async load on mount — not derived state.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadJobs();
   }, [loadJobs]);
 
-  // Auto-poll if any jobs are running
+  // Auto-poll: refetch every 3s while running/pending jobs exist
   useEffect(() => {
-    const hasRunning = jobs.some((j) => j.status === 'RUNNING' || j.status === 'PENDING');
-    if (!hasRunning) { setPolling(false); return; }
-
-    setPolling(true);
+    if (!polling) return;
     const interval = setInterval(() => loadJobs(false), 3000);
     return () => clearInterval(interval);
-  }, [jobs, loadJobs]);
+  }, [polling, loadJobs]);
 
   return (
     <div className="space-y-6">

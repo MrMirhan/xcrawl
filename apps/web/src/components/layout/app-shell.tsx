@@ -17,17 +17,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const isPublicPage = PUBLIC_PATHS.includes(pathname);
 
-  // Auth check — redirect to login if not authenticated
+  // Auth gate: deferred to client (localStorage unavailable on SSR).
   useEffect(() => {
     if (!isPublicPage && !isAuthenticated()) {
       router.replace('/login');
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAuthChecked(true);
     }
   }, [pathname, isPublicPage, router]);
 
-  // Close sidebar on route change (mobile)
+  // Sync mobile sidebar to external route changes.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSidebarOpen(false);
   }, [pathname]);
 

@@ -54,12 +54,9 @@ export default function JobDetailPage() {
   const [resultViewMode, setResultViewMode] = useState<Record<string, string>>({});
   const [cancelling, setCancelling] = useState(false);
 
-  const apiKey = typeof window !== 'undefined' ? '' : '';
-  const [storedApiKey, setStoredApiKey] = useState('');
-
-  useEffect(() => {
-    setStoredApiKey(localStorage.getItem('xcrawl-api-key') || '');
-  }, []);
+  const [storedApiKey] = useState(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('xcrawl-api-key') || '' : '',
+  );
 
   const loadJob = useCallback(async (key: string) => {
     if (!key || !id) return;
@@ -73,8 +70,9 @@ export default function JobDetailPage() {
     }
   }, [id]);
 
-  // Initial load
+  // Async load on mount + dependency changes — not derived state.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (storedApiKey) loadJob(storedApiKey);
     else setLoading(false);
   }, [storedApiKey, loadJob]);
@@ -408,7 +406,6 @@ export default function JobDetailPage() {
                 // Determine what formats this result has
                 const hasMarkdown = typeof result.markdown === 'string' && result.markdown.length > 0;
                 const hasHtml = typeof result.html === 'string' && result.html.length > 0;
-                const hasRawHtml = typeof result.rawHtml === 'string';
                 const hasText = typeof result.text === 'string' && result.text.length > 0;
                 const hasLinks = Array.isArray(result.links) && result.links.length > 0;
                 const hasImages = Array.isArray(result.images) && result.images.length > 0;

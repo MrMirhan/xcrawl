@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Plus, Trash2, Globe, Upload, CheckCircle, XCircle, Loader2, Wifi } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,17 +15,11 @@ export default function ProxiesPage() {
   const [batchText, setBatchText] = useState('');
   const [showBatch, setShowBatch] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [token, setToken] = useState<string | null>(null);
+  const [token] = useState<string | null>(() => getToken());
   const [proxyStatus, setProxyStatus] = useState<Record<string, 'testing' | 'ok' | 'fail'>>({});
   const [testingAll, setTestingAll] = useState(false);
 
-  useEffect(() => {
-    const t = getToken();
-    setToken(t);
-    if (t) loadProxies(t);
-  }, []);
-
-  const loadProxies = async (t: string) => {
+  const loadProxies = useCallback(async (t: string) => {
     try {
       const res = await fetch(`${API_BASE}/api/v1/user/settings`, {
         headers: { Authorization: `Bearer ${t}` },
@@ -37,7 +31,13 @@ export default function ProxiesPage() {
     } catch (err) {
       console.error('Failed to load proxies:', err);
     }
-  };
+  }, []);
+
+  // Async load on mount when token present — not derived state.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (token) loadProxies(token);
+  }, [token, loadProxies]);
 
   const saveProxies = async (newList: string[]) => {
     if (!token) return;

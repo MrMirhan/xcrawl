@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Plus, Trash2, CalendarClock, Play, Pause, Clock, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,7 +33,9 @@ const cronPresets = [
 
 export default function SchedulesPage() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [apiKey, setApiKey] = useState('');
+  const [apiKey] = useState(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('xcrawl-api-key') || '' : '',
+  );
   const [showCreate, setShowCreate] = useState(false);
 
   // Create form state
@@ -44,15 +46,14 @@ export default function SchedulesPage() {
   const [maxPages, setMaxPages] = useState(10);
   const [changeDetection, setChangeDetection] = useState(false);
 
-  useEffect(() => {
-    const key = localStorage.getItem('xcrawl-api-key') || '';
-    setApiKey(key);
-    if (key) loadSchedules(key);
+  const loadSchedules = useCallback((key: string) => {
+    apiClient.listSchedules(key).then((res) => setSchedules(res as Schedule[])).catch(console.error);
   }, []);
 
-  const loadSchedules = (key: string) => {
-    apiClient.listSchedules(key).then((res) => setSchedules(res as Schedule[])).catch(console.error);
-  };
+  // Async load on mount when key present — not derived state.
+  useEffect(() => {
+    if (apiKey) loadSchedules(apiKey);
+  }, [apiKey, loadSchedules]);
 
   const handleCreate = async () => {
     if (!name || !url || !apiKey) return;

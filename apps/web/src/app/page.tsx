@@ -24,15 +24,15 @@ const statCards = [
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
-  const [apiKey, setApiKey] = useState('');
+  const [apiKey] = useState(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('xcrawl-api-key') || '' : '',
+  );
 
+  // Async fetch on mount when key present — not derived state.
   useEffect(() => {
-    const key = localStorage.getItem('xcrawl-api-key') || '';
-    setApiKey(key);
-    if (key) {
-      apiClient.getJobStats(key).then((res) => setStats(res as Stats)).catch(console.error);
-    }
-  }, []);
+    if (!apiKey) return;
+    apiClient.getJobStats(apiKey).then((res) => setStats(res as Stats)).catch(console.error);
+  }, [apiKey]);
 
   return (
     <div className="space-y-8">

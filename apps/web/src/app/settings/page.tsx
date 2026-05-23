@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Check, ExternalLink, Key, BookOpen, Sparkles, Search, Loader2, Wifi, CheckCircle, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,9 +18,11 @@ interface UserSettings {
 }
 
 export default function SettingsPage() {
-  const [apiKey, setApiKey] = useState('');
+  const [apiKey, setApiKey] = useState(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('xcrawl-api-key') || '' : '',
+  );
   const [saved, setSaved] = useState(false);
-  const [token, setToken] = useState<string | null>(null);
+  const [token] = useState<string | null>(() => getToken());
 
   // Per-user settings
   const [settings, setSettings] = useState<UserSettings>({
@@ -36,14 +38,7 @@ export default function SettingsPage() {
   const [llmTest, setLlmTest] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
   const [llmTestMsg, setLlmTestMsg] = useState('');
 
-  useEffect(() => {
-    setApiKey(localStorage.getItem('xcrawl-api-key') || '');
-    const t = getToken();
-    setToken(t);
-    if (t) loadSettings(t);
-  }, []);
-
-  const loadSettings = async (t: string) => {
+  const loadSettings = useCallback(async (t: string) => {
     try {
       const res = await fetch(`${API_BASE}/api/v1/user/settings`, {
         headers: { Authorization: `Bearer ${t}` },
@@ -62,7 +57,13 @@ export default function SettingsPage() {
     } catch (err) {
       console.error('Failed to load settings:', err);
     }
-  };
+  }, []);
+
+  // Async load on mount when token present — not derived state.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (token) loadSettings(token);
+  }, [token, loadSettings]);
 
   const handleSaveApiKey = () => {
     localStorage.setItem('xcrawl-api-key', apiKey);
