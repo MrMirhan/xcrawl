@@ -7,7 +7,8 @@ import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
-  app.useLogger(app.get(Logger));
+  const logger = app.get(Logger);
+  app.useLogger(logger);
 
   const corsOrigin = process.env.CORS_ORIGIN;
   app.enableCors({
@@ -36,9 +37,10 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
 
   const port = process.env.API_PORT || 3001;
+  app.enableShutdownHooks();
   await app.listen(port);
-  console.log(`XCrawl API running on http://localhost:${port}`);
-  console.log(`Swagger docs: http://localhost:${port}/api/docs`);
+  logger.log(`XCrawl API running on http://localhost:${port}`);
+  logger.log(`Swagger docs: http://localhost:${port}/api/docs`);
 }
 
 bootstrap();
