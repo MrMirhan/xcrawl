@@ -62,6 +62,20 @@
 - **Per-user search** — Custom SearXNG instance URL
 - **API keys** — Create, list (masked), and revoke
 
+### MCP Integration
+
+XCrawl ships an MCP server at `/mcp` (Streamable HTTP transport). Connect any MCP-compatible client — Claude Code, Claude Desktop, Cursor, Continue, Zed — directly to your self-hosted instance using an API key.
+
+Seven tools are available: `scrape`, `crawl`, `map`, `search`, `extract`, `getJob`, `listJobs`. Sync tools return data inline; async tools (`crawl`, `extract`) return a job id you poll with `getJob`.
+
+```bash
+# Claude Code — one-liner setup
+claude mcp add --transport http xcrawl http://localhost:3001/mcp \
+  --header "X-API-Key: xc_your_key_here"
+```
+
+See [docs/mcp.md](docs/mcp.md) for full client setup (Claude Desktop, Cursor, others), the complete tool reference, and production deployment notes.
+
 ---
 
 ## Quick Start
