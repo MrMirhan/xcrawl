@@ -3,7 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { ScheduleModule } from '@nestjs/schedule';
 import { LoggerModule } from 'nestjs-pino';
-import type { IncomingMessage } from 'http';
+import { randomUUID } from 'node:crypto';
+import type { IncomingMessage, ServerResponse } from 'http';
 import appConfig, { redisConfig, databaseConfig, crawlerConfig, storageConfig } from './config/app.config';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { CrawlerEngineModule } from './modules/crawler-engine/crawler-engine.module';
@@ -42,6 +43,12 @@ import { CleanupModule } from './modules/cleanup/cleanup.module';
         return {
           pinoHttp: {
             level: isProd ? 'info' : 'debug',
+            genReqId: (req: IncomingMessage, res: ServerResponse) => {
+              const incoming = req.headers['x-request-id'];
+              const id = typeof incoming === 'string' && incoming.length > 0 ? incoming : randomUUID();
+              res.setHeader('X-Request-Id', id);
+              return id;
+            },
             transport: isProd
               ? undefined
               : {
