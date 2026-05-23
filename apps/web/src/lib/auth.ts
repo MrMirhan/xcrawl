@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+import { API_BASE, STORAGE_KEYS } from './config';
 
 export interface AuthUser {
   id: string;
@@ -34,12 +34,12 @@ export async function signin(email: string, password: string): Promise<{ user: A
 
 export function getToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('xcrawl-token');
+  return localStorage.getItem(STORAGE_KEYS.TOKEN);
 }
 
 export function getUser(): AuthUser | null {
   if (typeof window === 'undefined') return null;
-  const raw = localStorage.getItem('xcrawl-user');
+  const raw = localStorage.getItem(STORAGE_KEYS.USER);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as AuthUser;
@@ -49,16 +49,17 @@ export function getUser(): AuthUser | null {
 }
 
 export function saveAuth(user: AuthUser, token: string) {
-  localStorage.setItem('xcrawl-token', token);
-  localStorage.setItem('xcrawl-user', JSON.stringify(user));
-  // Also set as API key for backward compatibility
-  localStorage.setItem('xcrawl-api-key', token);
+  localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+  localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+  // Mirrored for legacy pages that still read xcrawl-api-key directly.
+  localStorage.setItem(STORAGE_KEYS.LEGACY_API_KEY, token);
 }
 
 export function clearAuth() {
-  localStorage.removeItem('xcrawl-token');
-  localStorage.removeItem('xcrawl-user');
-  localStorage.removeItem('xcrawl-api-key');
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(STORAGE_KEYS.TOKEN);
+  localStorage.removeItem(STORAGE_KEYS.USER);
+  localStorage.removeItem(STORAGE_KEYS.LEGACY_API_KEY);
 }
 
 export function isAuthenticated(): boolean {
