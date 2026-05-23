@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
@@ -125,53 +126,53 @@ export default function WebhooksPage() {
 
       <Card>
         <CardContent className="p-0">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/50">
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">URL</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Events</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Created</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>URL</TableHead>
+                <TableHead>Events</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {loading ? (
-                <tr>
-                  <td colSpan={4} className="px-4 py-16 text-center">
+                <TableRow>
+                  <TableCell colSpan={4} className="px-4 py-16 text-center">
                     <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : webhooks.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-4 py-12 text-center">
+                <TableRow>
+                  <TableCell colSpan={4} className="px-4 py-12 text-center">
                     <Webhook className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
                     <p className="text-sm text-muted-foreground">No webhooks configured.</p>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : (
                 webhooks.map((wh) => (
-                  <tr key={wh.id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3">
+                  <TableRow key={wh.id}>
+                    <TableCell>
                       <code className="text-xs font-mono text-muted-foreground">{wh.url}</code>
-                    </td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell>
                       <div className="flex gap-1 flex-wrap">
                         {wh.events.map((e) => (
                           <Badge key={e} variant="secondary" className="text-[10px]">{e}</Badge>
                         ))}
                       </div>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{formatDate(wh.createdAt)}</td>
-                    <td className="px-4 py-3 text-right">
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{formatDate(wh.createdAt)}</TableCell>
+                    <TableCell className="text-right">
                       <Button variant="ghost" size="sm" onClick={() => handleDelete(wh.id)} className="text-destructive hover:text-destructive">
                         <Trash2 className="h-3 w-3" />
                       </Button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>

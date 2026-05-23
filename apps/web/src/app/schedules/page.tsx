@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Select } from '@/components/ui/select';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { apiClient } from '@/lib/api-client';
 import { formatDate } from '@/lib/utils';
@@ -144,18 +146,18 @@ export default function SchedulesPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div>
                 <label className="text-xs font-medium text-muted-foreground block mb-1">Type</label>
-                <select value={type} onChange={(e) => setType(e.target.value as 'SCRAPE' | 'CRAWL')} className="flex h-8 w-full rounded-md border border-input bg-transparent px-2 text-xs">
+                <Select value={type} onChange={(e) => setType(e.target.value as 'SCRAPE' | 'CRAWL')} className="h-8 px-2 text-xs">
                   <option value="CRAWL">Crawl</option>
                   <option value="SCRAPE">Scrape</option>
-                </select>
+                </Select>
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground block mb-1">Frequency</label>
-                <select value={cron} onChange={(e) => setCron(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-transparent px-2 text-xs">
+                <Select value={cron} onChange={(e) => setCron(e.target.value)} className="h-8 px-2 text-xs">
                   {cronPresets.map((p) => (
                     <option key={p.value} value={p.value}>{p.label}</option>
                   ))}
-                </select>
+                </Select>
               </div>
               {type === 'CRAWL' && (
                 <div>
@@ -182,49 +184,49 @@ export default function SchedulesPage() {
       {/* Schedules List */}
       <Card>
         <CardContent className="p-0">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/50">
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Name</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Type</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Frequency</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Last Run</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Runs</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Frequency</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Last Run</TableHead>
+                <TableHead>Runs</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {loading ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-16 text-center">
+                <TableRow>
+                  <TableCell colSpan={7} className="px-4 py-16 text-center">
                     <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : schedules.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center">
+                <TableRow>
+                  <TableCell colSpan={7} className="px-4 py-12 text-center">
                     <CalendarClock className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
                     <p className="text-sm text-muted-foreground">No schedules yet.</p>
                     <p className="text-xs text-muted-foreground mt-1">Create one to run recurring crawls automatically.</p>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : (
                 schedules.map((s) => (
-                  <tr key={s.id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3">
+                  <TableRow key={s.id}>
+                    <TableCell>
                       <div className="font-medium text-sm">{s.name}</div>
                       <div className="text-xs text-muted-foreground truncate max-w-48">
                         {(s.config.url as string) || '-'}
                       </div>
-                    </td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell>
                       <Badge variant="secondary" className="text-[10px]">{s.type}</Badge>
-                    </td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell>
                       <code className="text-xs font-mono text-muted-foreground">{s.cron}</code>
-                    </td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell>
                       <div className="flex items-center gap-1.5">
                         <Badge variant={s.active ? 'success' : 'secondary'}>
                           {s.active ? 'Active' : 'Paused'}
@@ -235,17 +237,17 @@ export default function SchedulesPage() {
                           </Badge>
                         )}
                       </div>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
                       {s.lastRunAt ? (
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           {formatDate(s.lastRunAt)}
                         </div>
                       ) : 'Never'}
-                    </td>
-                    <td className="px-4 py-3 tabular-nums text-xs">{s.runCount}</td>
-                    <td className="px-4 py-3 text-right">
+                    </TableCell>
+                    <TableCell className="tabular-nums text-xs">{s.runCount}</TableCell>
+                    <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Button variant="ghost" size="sm" onClick={() => handleToggle(s.id)} className="h-7 px-2">
                           {s.active ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
@@ -254,12 +256,12 @@ export default function SchedulesPage() {
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>

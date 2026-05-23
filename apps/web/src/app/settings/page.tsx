@@ -5,6 +5,7 @@ import { Check, ExternalLink, Key, BookOpen, Sparkles, Search, Loader2, Wifi, Ch
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
 import { getToken } from '@/lib/auth';
 import { API_BASE } from '@/lib/config';
@@ -179,16 +180,15 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-medium text-muted-foreground block mb-1">Provider</label>
-                    <select
+                    <Select
                       value={settings.llmProvider}
                       onChange={(e) => setSettings({ ...settings, llmProvider: e.target.value })}
-                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                     >
                       <option value="openai">OpenAI</option>
                       <option value="anthropic">Anthropic</option>
                       <option value="ollama">Ollama (Local)</option>
                       <option value="openrouter">OpenRouter</option>
-                    </select>
+                    </Select>
                   </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground block mb-1">Model</label>
