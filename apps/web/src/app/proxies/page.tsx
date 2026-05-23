@@ -7,8 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { getToken } from '@/lib/auth';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+import { API_BASE } from '@/lib/config';
 
 export default function ProxiesPage() {
   const [proxies, setProxies] = useState<string[]>([]);
@@ -35,7 +34,9 @@ export default function ProxiesPage() {
         const data = await res.json();
         setProxies(data.proxyUrls || []);
       }
-    } catch { /* */ }
+    } catch (err) {
+      console.error('Failed to load proxies:', err);
+    }
   };
 
   const saveProxies = async (newList: string[]) => {
@@ -51,7 +52,9 @@ export default function ProxiesPage() {
         body: JSON.stringify({ proxyUrls: newList }),
       });
       setProxies(newList);
-    } catch { /* */ }
+    } catch (err) {
+      console.error('Failed to save proxies:', err);
+    }
     setSaving(false);
   };
 

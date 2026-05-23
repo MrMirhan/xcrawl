@@ -6,8 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { getToken } from '@/lib/auth';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+import { API_BASE } from '@/lib/config';
 
 interface UserSettings {
   proxyUrls: string[];
@@ -60,7 +59,9 @@ export default function SettingsPage() {
           searxngUrl: data.searxngUrl || '',
         });
       }
-    } catch { /* not logged in */ }
+    } catch (err) {
+      console.error('Failed to load settings:', err);
+    }
   };
 
   const handleSaveApiKey = () => {
@@ -115,7 +116,10 @@ export default function SettingsPage() {
       });
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 2000);
-    } catch { /* error */ }
+    } catch (err) {
+      console.error('Failed to save settings:', err);
+      setSettingsSaved(false);
+    }
     setSettingsLoading(false);
   };
 
@@ -279,7 +283,7 @@ export default function SettingsPage() {
             <CardDescription>Documentation and reference links.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <a href="http://localhost:3001/api/docs" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors">
+            <a href={`${API_BASE}/api/docs`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors">
               <div>
                 <p className="text-sm font-medium">Swagger API Docs</p>
                 <p className="text-xs text-muted-foreground">Interactive API reference</p>
