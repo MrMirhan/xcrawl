@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, Trash2, Webhook, Bell } from 'lucide-react';
+import { Plus, Trash2, Webhook, Bell, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,7 @@ const allEvents = ['job.completed', 'job.failed', 'crawl.page', 'crawl.started',
 
 export default function WebhooksPage() {
   const [webhooks, setWebhooks] = useState<WebhookData[]>([]);
+  const [loading, setLoading] = useState(true);
   const [newUrl, setNewUrl] = useState('');
   const [events, setEvents] = useState(['job.completed']);
   const [apiKey] = useState(() =>
@@ -29,13 +30,21 @@ export default function WebhooksPage() {
   );
 
   const loadWebhooks = useCallback((key: string) => {
-    if (key) {
-      apiClient.listWebhooks(key).then((res) => setWebhooks(res as WebhookData[])).catch(console.error);
+    if (!key) {
+      setLoading(false);
+      return;
     }
+    setLoading(true);
+    apiClient
+      .listWebhooks(key)
+      .then((res) => setWebhooks(res as WebhookData[]))
+      .catch((err) => console.error('Failed to load webhooks:', err))
+      .finally(() => setLoading(false));
   }, []);
 
   // Async load on mount — not derived state.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadWebhooks(apiKey);
   }, [apiKey, loadWebhooks]);
 
@@ -112,7 +121,13 @@ export default function WebhooksPage() {
               </tr>
             </thead>
             <tbody>
-              {webhooks.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={4} className="px-4 py-16 text-center">
+                    <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
+                  </td>
+                </tr>
+              ) : webhooks.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-4 py-12 text-center">
                     <Webhook className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />

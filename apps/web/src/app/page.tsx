@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Activity, CheckCircle, XCircle, Zap, ArrowRight, Terminal } from 'lucide-react';
+import { Activity, CheckCircle, XCircle, Zap, ArrowRight, Terminal, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api-client';
@@ -24,14 +24,23 @@ const statCards = [
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [loading, setLoading] = useState(true);
   const [apiKey] = useState(() =>
     typeof window !== 'undefined' ? localStorage.getItem('xcrawl-api-key') || '' : '',
   );
 
   // Async fetch on mount when key present — not derived state.
   useEffect(() => {
-    if (!apiKey) return;
-    apiClient.getJobStats(apiKey).then((res) => setStats(res as Stats)).catch(console.error);
+    if (!apiKey) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLoading(false);
+      return;
+    }
+    apiClient
+      .getJobStats(apiKey)
+      .then((res) => setStats(res as Stats))
+      .catch((err) => console.error('Failed to load stats:', err))
+      .finally(() => setLoading(false));
   }, [apiKey]);
 
   return (
@@ -72,9 +81,13 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">{label}</p>
-                  <p className="text-3xl font-bold mt-1 tabular-nums">
-                    {stats ? stats[key] : '\u2014'}
-                  </p>
+                  <div className="text-3xl font-bold mt-1 tabular-nums">
+                    {loading ? (
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    ) : (
+                      <span>{stats ? stats[key] : '\u2014'}</span>
+                    )}
+                  </div>
                 </div>
                 <div className={`flex h-10 w-10 items-center justify-center rounded-lg bg-muted ${color}`}>
                   <Icon className="h-5 w-5" />

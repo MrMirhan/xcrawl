@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Plus, Copy, Check, Trash2, Key } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Plus, Copy, Check, Trash2, Key, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,15 +20,25 @@ interface ApiKey {
 
 export default function ApiKeysPage() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
+  const [loading, setLoading] = useState(true);
   const [newKeyName, setNewKeyName] = useState('');
   const [createdKey, setCreatedKey] = useState('');
   const [copied, setCopied] = useState(false);
 
-  const loadKeys = () => {
-    apiClient.listApiKeys().then((res) => setKeys(res as ApiKey[])).catch(console.error);
-  };
+  const loadKeys = useCallback(() => {
+    setLoading(true);
+    apiClient
+      .listApiKeys()
+      .then((res) => setKeys(res as ApiKey[]))
+      .catch((err) => console.error('Failed to load API keys:', err))
+      .finally(() => setLoading(false));
+  }, []);
 
-  useEffect(loadKeys, []);
+  // Async load on mount — not derived state.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadKeys();
+  }, [loadKeys]);
 
   const handleCreate = async () => {
     if (!newKeyName) return;
@@ -117,7 +127,13 @@ export default function ApiKeysPage() {
               </tr>
             </thead>
             <tbody>
-              {keys.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-16 text-center">
+                    <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
+                  </td>
+                </tr>
+              ) : keys.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-12 text-center text-sm text-muted-foreground">
                     No API keys yet. Create one above to get started.

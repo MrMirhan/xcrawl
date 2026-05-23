@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, Trash2, CalendarClock, Play, Pause, Clock, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, CalendarClock, Play, Pause, Clock, RefreshCw, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,6 +33,7 @@ const cronPresets = [
 
 export default function SchedulesPage() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [loading, setLoading] = useState(true);
   const [apiKey] = useState(() =>
     typeof window !== 'undefined' ? localStorage.getItem('xcrawl-api-key') || '' : '',
   );
@@ -47,12 +48,22 @@ export default function SchedulesPage() {
   const [changeDetection, setChangeDetection] = useState(false);
 
   const loadSchedules = useCallback((key: string) => {
-    apiClient.listSchedules(key).then((res) => setSchedules(res as Schedule[])).catch(console.error);
+    setLoading(true);
+    apiClient
+      .listSchedules(key)
+      .then((res) => setSchedules(res as Schedule[]))
+      .catch((err) => console.error('Failed to load schedules:', err))
+      .finally(() => setLoading(false));
   }, []);
 
   // Async load on mount when key present — not derived state.
   useEffect(() => {
-    if (apiKey) loadSchedules(apiKey);
+    if (apiKey) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      loadSchedules(apiKey);
+    } else {
+      setLoading(false);
+    }
   }, [apiKey, loadSchedules]);
 
   const handleCreate = async () => {
@@ -164,7 +175,13 @@ export default function SchedulesPage() {
               </tr>
             </thead>
             <tbody>
-              {schedules.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-16 text-center">
+                    <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
+                  </td>
+                </tr>
+              ) : schedules.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center">
                     <CalendarClock className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
