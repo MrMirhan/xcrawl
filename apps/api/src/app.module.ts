@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { ScheduleModule } from '@nestjs/schedule';
+import { LoggerModule } from 'nestjs-pino';
+import type { IncomingMessage } from 'http';
 import appConfig, { redisConfig, databaseConfig, crawlerConfig, storageConfig } from './config/app.config';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { CrawlerEngineModule } from './modules/crawler-engine/crawler-engine.module';
@@ -30,6 +32,34 @@ import { CleanupModule } from './modules/cleanup/cleanup.module';
       isGlobal: true,
       envFilePath: ['.env', '../../.env'],
       load: [appConfig, redisConfig, databaseConfig, crawlerConfig, storageConfig],
+    }),
+
+    // Structured logging (pino backend for NestJS Logger)
+    LoggerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const isProd = config.get('app.nodeEnv') === 'production';
+        return {
+          pinoHttp: {
+            level: isProd ? 'info' : 'debug',
+            transport: isProd
+              ? undefined
+              : {
+                  target: 'pino-pretty',
+                  options: { colorize: true, singleLine: true, translateTime: 'HH:MM:ss.l' },
+                },
+            redact: [
+              'req.headers.authorization',
+              'req.headers["x-api-key"]',
+              'req.body.password',
+              'req.body.apiKey',
+            ],
+            autoLogging: {
+              ignore: (req: IncomingMessage) => req.url === '/api/v1/health',
+            },
+          },
+        };
+      },
     }),
 
     // Scheduled tasks (cleanup, etc.)
