@@ -6,10 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/components/ui/toast';
 import { getToken } from '@/lib/auth';
 import { API_BASE } from '@/lib/config';
 
 export default function ProxiesPage() {
+  const toast = useToast();
   const [proxies, setProxies] = useState<string[]>([]);
   const [newProxy, setNewProxy] = useState('');
   const [batchText, setBatchText] = useState('');
@@ -39,11 +41,11 @@ export default function ProxiesPage() {
     if (token) loadProxies(token);
   }, [token, loadProxies]);
 
-  const saveProxies = async (newList: string[]) => {
+  const saveProxies = async (newList: string[], successMsg?: string, errorMsg?: string) => {
     if (!token) return;
     setSaving(true);
     try {
-      await fetch(`${API_BASE}/api/v1/user/settings`, {
+      const res = await fetch(`${API_BASE}/api/v1/user/settings`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -51,21 +53,24 @@ export default function ProxiesPage() {
         },
         body: JSON.stringify({ proxyUrls: newList }),
       });
+      if (!res.ok) throw new Error(`Save failed: ${res.status}`);
       setProxies(newList);
+      if (successMsg) toast.success(successMsg);
     } catch (err) {
-      console.error('Failed to save proxies:', err);
+      const msg = err instanceof Error ? err.message : errorMsg ?? 'Failed to save proxies';
+      toast.error(msg);
     }
     setSaving(false);
   };
 
   const handleAdd = () => {
     if (!newProxy || proxies.includes(newProxy)) return;
-    saveProxies([...proxies, newProxy]);
+    saveProxies([...proxies, newProxy], 'Proxy added', 'Failed to add proxy');
     setNewProxy('');
   };
 
   const handleRemove = (url: string) => {
-    saveProxies(proxies.filter((p) => p !== url));
+    saveProxies(proxies.filter((p) => p !== url), 'Proxy removed', 'Failed to remove proxy');
   };
 
   const handleBatchAdd = () => {
@@ -76,18 +81,18 @@ export default function ProxiesPage() {
 
     if (urls.length === 0) return;
     const merged = [...new Set([...proxies, ...urls])];
-    saveProxies(merged);
+    saveProxies(merged, `Imported ${urls.length} proxies`, 'Failed to import proxies');
     setBatchText('');
     setShowBatch(false);
   };
 
   const handleClearAll = () => {
-    saveProxies([]);
+    saveProxies([], 'All proxies cleared', 'Failed to clear proxies');
     setProxyStatus({});
   };
 
-  const testProxy = async (proxyUrl: string) => {
-    if (!token) return;
+  const testProxy = async (proxyUrl: string): Promise<boolean> => {
+    if (!token) return false;
     setProxyStatus((prev) => ({ ...prev, [proxyUrl]: 'testing' }));
     try {
       const res = await fetch(`${API_BASE}/api/v1/proxies/test`, {
@@ -100,17 +105,27 @@ export default function ProxiesPage() {
       });
       const data = await res.json() as { success: boolean };
       setProxyStatus((prev) => ({ ...prev, [proxyUrl]: data.success ? 'ok' : 'fail' }));
+      return data.success;
     } catch {
       setProxyStatus((prev) => ({ ...prev, [proxyUrl]: 'fail' }));
+      return false;
     }
+  };
+
+  const handleTestProxy = async (proxyUrl: string) => {
+    const ok = await testProxy(proxyUrl);
+    if (ok) toast.success('Proxy works');
+    else toast.error('Proxy failed');
   };
 
   const testAllProxies = async () => {
     setTestingAll(true);
+    let okCount = 0;
     for (const proxy of proxies) {
-      await testProxy(proxy);
+      if (await testProxy(proxy)) okCount++;
     }
     setTestingAll(false);
+    toast.info(`Tested ${proxies.length} proxies (${okCount} ok, ${proxies.length - okCount} failed)`);
   };
 
   return (
@@ -227,7 +242,7 @@ export default function ProxiesPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => testProxy(proxy)}
+                        onClick={() => handleTestProxy(proxy)}
                         disabled={proxyStatus[proxy] === 'testing'}
                         className="h-7 px-2"
                       >

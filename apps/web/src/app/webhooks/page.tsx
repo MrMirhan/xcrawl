@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
 import { formatDate } from '@/lib/utils';
@@ -21,6 +22,7 @@ interface WebhookData {
 const allEvents = ['job.completed', 'job.failed', 'crawl.page', 'crawl.started', 'crawl.completed'];
 
 export default function WebhooksPage() {
+  const toast = useToast();
   const [webhooks, setWebhooks] = useState<WebhookData[]>([]);
   const [loading, setLoading] = useState(true);
   const [newUrl, setNewUrl] = useState('');
@@ -50,14 +52,26 @@ export default function WebhooksPage() {
 
   const handleCreate = async () => {
     if (!newUrl || !apiKey) return;
-    await apiClient.createWebhook({ url: newUrl, events }, apiKey);
-    setNewUrl('');
-    loadWebhooks(apiKey);
+    try {
+      await apiClient.createWebhook({ url: newUrl, events }, apiKey);
+      setNewUrl('');
+      loadWebhooks(apiKey);
+      toast.success('Webhook created');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to create webhook';
+      toast.error(msg);
+    }
   };
 
   const handleDelete = async (id: string) => {
-    await apiClient.deleteWebhook(id, apiKey);
-    loadWebhooks(apiKey);
+    try {
+      await apiClient.deleteWebhook(id, apiKey);
+      loadWebhooks(apiKey);
+      toast.success('Webhook deleted');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to delete webhook';
+      toast.error(msg);
+    }
   };
 
   const toggleEvent = (e: string) => {

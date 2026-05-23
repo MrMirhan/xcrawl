@@ -5,6 +5,7 @@ import { Check, ExternalLink, Key, BookOpen, Sparkles, Search, Loader2, Wifi, Ch
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useToast } from '@/components/ui/toast';
 import { getToken } from '@/lib/auth';
 import { API_BASE } from '@/lib/config';
 
@@ -18,6 +19,7 @@ interface UserSettings {
 }
 
 export default function SettingsPage() {
+  const toast = useToast();
   const [apiKey, setApiKey] = useState(() =>
     typeof window !== 'undefined' ? localStorage.getItem('xcrawl-api-key') || '' : '',
   );
@@ -69,6 +71,7 @@ export default function SettingsPage() {
     localStorage.setItem('xcrawl-api-key', apiKey);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+    toast.success('API key saved');
   };
 
   const testLlmConnection = async () => {
@@ -93,13 +96,17 @@ export default function SettingsPage() {
       if (data.success) {
         setLlmTest('ok');
         setLlmTestMsg(data.message);
+        toast.success('LLM connection ok');
       } else {
         setLlmTest('fail');
         setLlmTestMsg(data.message);
+        toast.error(data.message || 'LLM connection failed');
       }
     } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Connection failed';
       setLlmTest('fail');
-      setLlmTestMsg(err instanceof Error ? err.message : 'Connection failed');
+      setLlmTestMsg(msg);
+      toast.error(msg);
     }
   };
 
@@ -107,7 +114,7 @@ export default function SettingsPage() {
     if (!token) return;
     setSettingsLoading(true);
     try {
-      await fetch(`${API_BASE}/api/v1/user/settings`, {
+      const res = await fetch(`${API_BASE}/api/v1/user/settings`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -115,11 +122,14 @@ export default function SettingsPage() {
         },
         body: JSON.stringify(settings),
       });
+      if (!res.ok) throw new Error(`Save failed: ${res.status}`);
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 2000);
+      toast.success('Settings saved');
     } catch (err) {
-      console.error('Failed to save settings:', err);
+      const msg = err instanceof Error ? err.message : 'Failed to save settings';
       setSettingsSaved(false);
+      toast.error(msg);
     }
     setSettingsLoading(false);
   };

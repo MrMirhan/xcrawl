@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/components/ui/toast';
 import { apiClient } from '@/lib/api-client';
 import { formatDate } from '@/lib/utils';
 
@@ -32,6 +33,7 @@ const cronPresets = [
 ];
 
 export default function SchedulesPage() {
+  const toast = useToast();
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [apiKey] = useState(() =>
@@ -71,23 +73,41 @@ export default function SchedulesPage() {
     const config: Record<string, unknown> = { url, formats: ['markdown'] };
     if (type === 'CRAWL') config.maxPages = maxPages;
 
-    await apiClient.createSchedule({
-      name, type, cron, config,
-      enableChangeDetection: changeDetection,
-    }, apiKey);
+    try {
+      await apiClient.createSchedule({
+        name, type, cron, config,
+        enableChangeDetection: changeDetection,
+      }, apiKey);
 
-    setName(''); setUrl(''); setShowCreate(false);
-    loadSchedules(apiKey);
+      setName(''); setUrl(''); setShowCreate(false);
+      loadSchedules(apiKey);
+      toast.success('Schedule created');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to create schedule';
+      toast.error(msg);
+    }
   };
 
   const handleToggle = async (id: string) => {
-    await apiClient.toggleSchedule(id, apiKey);
-    loadSchedules(apiKey);
+    try {
+      await apiClient.toggleSchedule(id, apiKey);
+      loadSchedules(apiKey);
+      toast.success('Schedule updated');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to update schedule';
+      toast.error(msg);
+    }
   };
 
   const handleDelete = async (id: string) => {
-    await apiClient.deleteSchedule(id, apiKey);
-    loadSchedules(apiKey);
+    try {
+      await apiClient.deleteSchedule(id, apiKey);
+      loadSchedules(apiKey);
+      toast.success('Schedule deleted');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to delete schedule';
+      toast.error(msg);
+    }
   };
 
   return (

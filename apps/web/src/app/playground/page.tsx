@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
 import { ExtractSettings, defaultExtractConfig, type ExtractConfig } from '@/components/playground/extract-settings';
@@ -79,6 +80,7 @@ const defaultCrawlSettings: CrawlSettings = {
 };
 
 export default function PlaygroundPage() {
+  const toast = useToast();
   const [mode, setMode] = useState<Mode>('scrape');
   const [url, setUrl] = useState('');
   const [scrapeSettings, setScrapeSettings] = useState<ScrapeSettings>({ ...defaultScrapeSettings });
@@ -149,7 +151,11 @@ export default function PlaygroundPage() {
           setResult(status);
           setResultTab('json');
           if (jobStatus === 'FAILED') {
-            setError(`Crawl failed: ${status.error || 'Unknown error'}`);
+            const errMsg = `Crawl failed: ${status.error || 'Unknown error'}`;
+            setError(errMsg);
+            toast.error(errMsg);
+          } else if (jobStatus === 'COMPLETED') {
+            toast.success(`${mode.charAt(0).toUpperCase() + mode.slice(1)} completed`);
           }
         }
       } catch {
@@ -158,7 +164,7 @@ export default function PlaygroundPage() {
     }, 2000);
 
     return () => clearInterval(pollInterval);
-  }, [pollingJobId, apiKey, mode]);
+  }, [pollingJobId, apiKey, mode, toast]);
 
   const updateCrawlSetting = <K extends keyof CrawlSettings>(key: K, value: CrawlSettings[K]) => {
     setCrawlSettings((prev) => ({ ...prev, [key]: value }));
@@ -279,7 +285,9 @@ export default function PlaygroundPage() {
           break;
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Request failed');
+      const msg = e instanceof Error ? e.message : 'Request failed';
+      setError(msg);
+      toast.error(msg);
       setLoading(false);
     }
   };
@@ -990,7 +998,9 @@ export default function PlaygroundPage() {
                                 setPollStatus('PENDING — Starting batch scrape...');
                                 setMode('scrape');
                               } catch (e) {
-                                setError(e instanceof Error ? e.message : 'Batch scrape failed');
+                                const msg = e instanceof Error ? e.message : 'Batch scrape failed';
+                                setError(msg);
+                                toast.error(msg);
                                 setLoading(false);
                               }
                             }}

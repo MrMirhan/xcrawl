@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/components/ui/toast';
 import { apiClient } from '@/lib/api-client';
 import { formatDate } from '@/lib/utils';
 
@@ -19,6 +20,7 @@ interface ApiKey {
 }
 
 export default function ApiKeysPage() {
+  const toast = useToast();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [newKeyName, setNewKeyName] = useState('');
@@ -47,14 +49,22 @@ export default function ApiKeysPage() {
       setCreatedKey(res.key);
       setNewKeyName('');
       loadKeys();
+      toast.success('API key created');
     } catch (e) {
-      console.error(e);
+      const msg = e instanceof Error ? e.message : 'Failed to create API key';
+      toast.error(msg);
     }
   };
 
   const handleRevoke = async (id: string) => {
-    await apiClient.revokeApiKey(id);
-    loadKeys();
+    try {
+      await apiClient.revokeApiKey(id);
+      loadKeys();
+      toast.success('API key revoked');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to revoke API key';
+      toast.error(msg);
+    }
   };
 
   const handleCopy = async (text: string) => {

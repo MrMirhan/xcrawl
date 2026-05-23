@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { useToast } from '@/components/ui/toast';
 import { apiClient } from '@/lib/api-client';
 import { formatDate } from '@/lib/utils';
 
@@ -47,6 +48,7 @@ function downloadText(text: string, filename: string) {
 export default function JobDetailPage() {
   const params = useParams();
   const id = params.id as string;
+  const toast = useToast();
   const [job, setJob] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewTab, setViewTab] = useState('results');
@@ -93,8 +95,10 @@ export default function JobDetailPage() {
     try {
       await apiClient.cancelCrawl(id, storedApiKey);
       await loadJob(storedApiKey);
+      toast.success('Job cancelled');
     } catch (e) {
-      console.error(e);
+      const msg = e instanceof Error ? e.message : 'Failed to cancel job';
+      toast.error(msg);
     } finally {
       setCancelling(false);
     }
