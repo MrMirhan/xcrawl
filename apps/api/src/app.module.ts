@@ -1,8 +1,13 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { ScheduleModule } from '@nestjs/schedule';
 import { LoggerModule } from 'nestjs-pino';
+import {
+  PrometheusModule,
+  makeCounterProvider,
+  makeHistogramProvider,
+} from '@willsoto/nestjs-prometheus';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'http';
 import appConfig, { redisConfig, databaseConfig, crawlerConfig, storageConfig } from './config/app.config';
@@ -25,6 +30,7 @@ import { UserAuthModule } from './modules/user-auth/user-auth.module';
 import { SearchModule } from './modules/search/search.module';
 import { ScheduleModule as CrawlScheduleModule } from './modules/schedule/schedule.module';
 import { CleanupModule } from './modules/cleanup/cleanup.module';
+import { MetricsMiddleware } from './common/middleware/metrics.middleware';
 
 @Module({
   imports: [
@@ -62,11 +68,17 @@ import { CleanupModule } from './modules/cleanup/cleanup.module';
               'req.body.apiKey',
             ],
             autoLogging: {
-              ignore: (req: IncomingMessage) => req.url === '/api/v1/health',
+              ignore: (req: IncomingMessage) => req.url === '/api/v1/health' || req.url === '/metrics',
             },
           },
         };
       },
+    }),
+
+    // Prometheus metrics (/metrics endpoint, default Node.js metrics enabled)
+    PrometheusModule.register({
+      defaultMetrics: { enabled: true },
+      path: '/metrics',
     }),
 
     // Scheduled tasks (cleanup, etc.)
@@ -104,5 +116,22 @@ import { CleanupModule } from './modules/cleanup/cleanup.module';
     CrawlScheduleModule,
     CleanupModule,
   ],
+  providers: [
+    makeCounterProvider({
+      name: 'http_requests_total',
+      help: 'Total HTTP requests',
+      labelNames: ['method', 'route', 'status'],
+    }),
+    makeHistogramProvider({
+      name: 'http_request_duration_seconds',
+      help: 'HTTP request duration in seconds',
+      labelNames: ['method', 'route', 'status'],
+      buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+    }),
+  ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(MetricsMiddleware).forRoutes('*');
+  }
+}
