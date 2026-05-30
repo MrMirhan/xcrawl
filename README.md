@@ -232,13 +232,13 @@ xcrawl/
 ## Production Deployment
 
 ```bash
-# Set all env vars in .env (especially JWT_SECRET, POSTGRES_PASSWORD)
-docker compose up -d
+cp .env.production.example .env   # fill in domain, secrets, admin
+docker compose up -d --build
 ```
 
-Services: API (3001), Dashboard (3000), PostgreSQL, Redis, SearXNG, optional Garage (S3).
+Everything runs behind one Caddy reverse proxy with automatic HTTPS — API, dashboard, MCP, Socket.IO all served from a single domain. Workers scale via `deploy.replicas`. Behind NAT or want Cloudflare's edge? A Cloudflare Tunnel service ships commented in `docker-compose.yml`.
 
-Workers scale independently via `deploy.replicas` in `docker-compose.yml`.
+Full walkthrough — VPS quick start, Cloudflare Tunnel setup, backups, updates, troubleshooting — in [docs/deployment.md](docs/deployment.md). MCP client setup in [docs/mcp.md](docs/mcp.md).
 
 ---
 

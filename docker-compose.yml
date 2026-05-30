@@ -1,14 +1,43 @@
+name: xcrawl
+
+# Production stack. Single command: `docker compose up -d`.
+# Only Caddy is published to the host (80, 443). Everything else lives on
+# the `xcrawl-internal` network and is reachable by service name.
+#
+# For Cloudflare Tunnel mode (no public ports), see the commented `cloudflared`
+# service near the bottom and the deployment guide at docs/deployment.md.
+
 services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    environment:
+      - XCRAWL_DOMAIN=${XCRAWL_DOMAIN}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - xcrawl-internal
+    depends_on:
+      - api
+      - web
+
   postgres:
     image: postgres:17-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-xcrawl}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xcrawl}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-xcrawl}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    networks:
+      - xcrawl-internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-xcrawl}"]
       interval: 5s
@@ -17,11 +46,12 @@ services:
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
-    ports:
-      - "6379:6379"
     volumes:
       - redis-data:/data
+    networks:
+      - xcrawl-internal
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -32,14 +62,34 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.api
-    ports:
-      - "${API_PORT:-3001}:3001"
+    restart: unless-stopped
+    expose:
+      - "3001"
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-xcrawl}:${POSTGRES_PASSWORD:-xcrawl}@postgres:5432/${POSTGRES_DB:-xcrawl}
+      - NODE_ENV=production
+      - API_PORT=3001
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-xcrawl}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-xcrawl}
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGIN=https://${XCRAWL_DOMAIN}
+      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
       - STORAGE_PATH=/data/storage
-      - NODE_ENV=production
+      - S3_ENDPOINT=${S3_ENDPOINT:-}
+      - S3_BUCKET=${S3_BUCKET:-xcrawl}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:-}
+      - S3_REGION=${S3_REGION:-us-east-1}
+      - SEARXNG_URL=${SEARXNG_URL:-http://searxng:8080}
+      - CRAWLER_MAX_CONCURRENCY=${CRAWLER_MAX_CONCURRENCY:-10}
+      - CRAWLER_DEFAULT_TIMEOUT=${CRAWLER_DEFAULT_TIMEOUT:-30000}
+      - CRAWLER_HEADLESS=${CRAWLER_HEADLESS:-true}
+      - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-100}
+      - RATE_LIMIT_MAX_ANON=${RATE_LIMIT_MAX_ANON:-20}
+      - RATE_LIMIT_WINDOW_SECS=${RATE_LIMIT_WINDOW_SECS:-60}
+      - CACHE_TTL_SECS=${CACHE_TTL_SECS:-3600}
+      - CLEANUP_TTL_HOURS=${CLEANUP_TTL_HOURS:-168}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,19 +97,33 @@ services:
         condition: service_healthy
     volumes:
       - storage-data:/data/storage
-    restart: unless-stopped
+    networks:
+      - xcrawl-internal
 
   worker:
     build:
       context: .
       dockerfile: docker/Dockerfile.api
+    restart: unless-stopped
     command: node dist/main.js
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-xcrawl}:${POSTGRES_PASSWORD:-xcrawl}@postgres:5432/${POSTGRES_DB:-xcrawl}
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-xcrawl}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-xcrawl}
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET}
+      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
       - STORAGE_PATH=/data/storage
-      - NODE_ENV=production
+      - S3_ENDPOINT=${S3_ENDPOINT:-}
+      - S3_BUCKET=${S3_BUCKET:-xcrawl}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:-}
+      - S3_REGION=${S3_REGION:-us-east-1}
+      - SEARXNG_URL=${SEARXNG_URL:-http://searxng:8080}
+      - CRAWLER_MAX_CONCURRENCY=${CRAWLER_MAX_CONCURRENCY:-10}
+      - CRAWLER_DEFAULT_TIMEOUT=${CRAWLER_DEFAULT_TIMEOUT:-30000}
+      - CRAWLER_HEADLESS=${CRAWLER_HEADLESS:-true}
+      - CACHE_TTL_SECS=${CACHE_TTL_SECS:-3600}
+      - CLEANUP_TTL_HOURS=${CLEANUP_TTL_HOURS:-168}
     depends_on:
       postgres:
         condition: service_healthy
@@ -67,7 +131,8 @@ services:
         condition: service_healthy
     volumes:
       - storage-data:/data/storage
-    restart: unless-stopped
+    networks:
+      - xcrawl-internal
     deploy:
       replicas: 2
 
@@ -75,43 +140,91 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.web
-    ports:
-      - "${WEB_PORT:-3000}:3000"
+      args:
+        - NEXT_PUBLIC_API_URL=https://${XCRAWL_DOMAIN}
+    restart: unless-stopped
+    expose:
+      - "3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://api:3001
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=https://${XCRAWL_DOMAIN}
     depends_on:
       - api
-    restart: unless-stopped
+    networks:
+      - xcrawl-internal
 
   searxng:
     image: searxng/searxng:latest
-    ports:
-      - "8888:8080"
+    restart: unless-stopped
+    expose:
+      - "8080"
     environment:
-      - SEARXNG_BASE_URL=http://localhost:8888
-      - SEARXNG_SECRET=${SEARXNG_SECRET:-xcrawl-searxng-secret}
+      - SEARXNG_BASE_URL=http://searxng:8080
+      - SEARXNG_SECRET=${SEARXNG_SECRET}
     volumes:
       - ./docker/searxng/settings.yml:/etc/searxng/settings.yml:ro
-    restart: unless-stopped
+    networks:
+      - xcrawl-internal
 
   garage:
     image: dxflrs/garage:v1.1.0
-    ports:
-      - "3900:3900"   # S3 API
-      - "3902:3902"   # Admin API
+    restart: unless-stopped
+    expose:
+      - "3900"
+      - "3902"
     environment:
       GARAGE_ALLOW_WORLD_READABLE_SECRETS: "true"
     volumes:
       - garage-data:/var/lib/garage/data
       - garage-meta:/var/lib/garage/meta
       - ./docker/garage.toml:/etc/garage.toml:ro
+    networks:
+      - xcrawl-internal
     profiles:
       - s3
+
+  # ----------------------------------------------------------------------
+  # Cloudflare Tunnel (alternative to Caddy + public ports).
+  #
+  # When to use:
+  #   - You can't open ports 80/443 (home server behind NAT, ISP blocks).
+  #   - You want Cloudflare's edge (DDoS, caching, WAF) in front.
+  #
+  # How to switch:
+  #   1. Stop and remove the `caddy` service (or comment it out).
+  #   2. Remove the `ports:` block from caddy (already done if removed).
+  #   3. Create a Cloudflare Tunnel in the dashboard
+  #      (Zero Trust -> Networks -> Tunnels) and copy the token.
+  #   4. Set TUNNEL_TOKEN in .env.
+  #   5. Uncomment the service below.
+  #   6. In the Cloudflare dashboard, add a public hostname pointing to
+  #      `http://caddy:80` if you want to keep Caddy as an internal router,
+  #      or directly to `http://web:3000` and `http://api:3001` (you will
+  #      need separate hostnames for api/web/socket.io then — Caddy makes
+  #      single-domain routing easier, so keeping it internal is recommended).
+  #   7. `docker compose up -d`
+  #
+  # cloudflared:
+  #   image: cloudflare/cloudflared:latest
+  #   restart: unless-stopped
+  #   command: tunnel --no-autoupdate run
+  #   environment:
+  #     - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+  #   networks:
+  #     - xcrawl-internal
+  #   depends_on:
+  #     - api
+  #     - web
 
 volumes:
   postgres-data:
   redis-data:
   storage-data:
-  searxng-data:
+  caddy-data:
+  caddy-config:
   garage-data:
   garage-meta:
+
+networks:
+  xcrawl-internal:
+    driver: bridge

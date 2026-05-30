@@ -1,0 +1,100 @@
+# XCrawl reverse proxy.
+#
+# Single domain (set XCRAWL_DOMAIN in .env). Caddy obtains a Let's Encrypt
+# certificate automatically on first request. HTTP/3 is enabled by default.
+#
+# Routing:
+#   /api/*        -> api:3001  (NestJS, global prefix /api/v1)
+#   /mcp, /mcp/*  -> api:3001  (excluded from global prefix in main.ts)
+#   /metrics      -> api:3001  (excluded from global prefix in main.ts)
+#   /socket.io/*  -> api:3001  (Socket.IO long-poll + WebSocket upgrade)
+#   /             -> web:3000  (Next.js dashboard)
+#
+# `handle` (not `handle_path`) is used everywhere — the path is forwarded
+# to the backend untouched. The NestJS app expects to see `/api/v1/...`
+# in its request URL, not `/v1/...`.
+
+{
+	email admin@{$XCRAWL_DOMAIN}
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
+{$XCRAWL_DOMAIN} {
+	encode gzip zstd
+
+	# Security headers. HSTS is set with a moderate max-age so you can
+	# back out cleanly during the first weeks; raise it once you're stable.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Block dotfiles and common secret paths.
+	@forbidden {
+		path /.env* /.git/* /.htaccess
+	}
+	respond @forbidden 404
+
+	# API routes — NestJS global prefix is /api/v1, so no path strip here.
+	handle /api/* {
+		reverse_proxy api:3001 {
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Forwarded-Host {host}
+		}
+	}
+
+	# MCP server (Streamable HTTP transport, excluded from global prefix).
+	handle /mcp* {
+		reverse_proxy api:3001 {
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	# Prometheus metrics (excluded from global prefix).
+	# If you don't want this publicly scrapeable, add an IP allowlist:
+	#   @metrics_allowed remote_ip 10.0.0.0/8 192.168.0.0/16
+	#   handle @metrics_allowed { reverse_proxy api:3001 }
+	#   handle { respond 403 }
+	handle /metrics {
+		reverse_proxy api:3001
+	}
+
+	# Socket.IO transport. WebSocket upgrade is handled automatically by
+	# Caddy v2's reverse_proxy when the client sends an Upgrade header.
+	handle /socket.io/* {
+		reverse_proxy api:3001 {
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+			transport http {
+				read_timeout 60s
+				write_timeout 60s
+			}
+		}
+	}
+
+	# Everything else -> Next.js dashboard.
+	handle {
+		reverse_proxy web:3000 {
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Forwarded-Host {host}
+		}
+	}
+
+	log {
+		output stdout
+		format console
+		level INFO
+	}
+}

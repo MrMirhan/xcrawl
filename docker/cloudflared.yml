@@ -1,0 +1,39 @@
+# Cloudflare Tunnel config (config-file mode).
+#
+# This file is OPTIONAL. The simpler way to run a tunnel is the token mode
+# documented in docker-compose.yml — pass TUNNEL_TOKEN as an env var and
+# Cloudflare hosts the routing config for you.
+#
+# Use this file only if you want the routes defined locally in the repo.
+#
+# Setup:
+#   1. Install cloudflared locally and run `cloudflared tunnel login`
+#      (or pre-create the tunnel in the Cloudflare dashboard).
+#   2. `cloudflared tunnel create xcrawl` — note the tunnel UUID.
+#   3. Place the credentials JSON at /etc/cloudflared/<UUID>.json on the host
+#      and mount it into the cloudflared container.
+#   4. Replace <UUID> and the hostnames below.
+#   5. In the cloudflared service in docker-compose.yml, switch the command to:
+#        command: tunnel --config /etc/cloudflared/config.yml run
+#      and mount this file to /etc/cloudflared/config.yml.
+
+tunnel: <UUID-of-your-tunnel>
+credentials-file: /etc/cloudflared/<UUID>.json
+
+# Single-hostname setup (recommended). Cloudflare hits Caddy, Caddy routes
+# to api / web / searxng inside the Docker network exactly as it does for
+# the public-port deployment.
+ingress:
+  - hostname: xcrawl.example.com
+    service: http://caddy:80
+  - service: http_status:404
+
+# Multi-hostname alternative (if you'd rather skip Caddy entirely):
+# ingress:
+#   - hostname: api.xcrawl.example.com
+#     service: http://api:3001
+#   - hostname: ws.xcrawl.example.com
+#     service: http://api:3001
+#   - hostname: xcrawl.example.com
+#     service: http://web:3000
+#   - service: http_status:404
