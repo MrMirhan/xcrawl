@@ -91,8 +91,10 @@ export default function ProxiesPage() {
     setProxyStatus({});
   };
 
-  const testProxy = async (proxyUrl: string): Promise<boolean> => {
-    if (!token) return false;
+  type ProxyTestResult = { success: boolean; latency?: number; error?: string };
+
+  const testProxy = async (proxyUrl: string): Promise<ProxyTestResult> => {
+    if (!token) return { success: false, error: 'Not authenticated' };
     setProxyStatus((prev) => ({ ...prev, [proxyUrl]: 'testing' }));
     try {
       const res = await fetch(`${API_BASE}/api/v1/proxies/test`, {
@@ -103,26 +105,29 @@ export default function ProxiesPage() {
         },
         body: JSON.stringify({ url: proxyUrl }),
       });
-      const data = await res.json() as { success: boolean };
+      const data = await res.json() as ProxyTestResult;
       setProxyStatus((prev) => ({ ...prev, [proxyUrl]: data.success ? 'ok' : 'fail' }));
-      return data.success;
-    } catch {
+      return data;
+    } catch (err) {
       setProxyStatus((prev) => ({ ...prev, [proxyUrl]: 'fail' }));
-      return false;
+      return { success: false, error: err instanceof Error ? err.message : 'Request failed' };
     }
   };
 
   const handleTestProxy = async (proxyUrl: string) => {
-    const ok = await testProxy(proxyUrl);
-    if (ok) toast.success('Proxy works');
-    else toast.error('Proxy failed');
+    const result = await testProxy(proxyUrl);
+    if (result.success) {
+      toast.success(result.latency ? `Proxy OK — ${result.latency}ms` : 'Proxy OK');
+    } else {
+      toast.error(result.error || 'Proxy unreachable');
+    }
   };
 
   const testAllProxies = async () => {
     setTestingAll(true);
     let okCount = 0;
     for (const proxy of proxies) {
-      if (await testProxy(proxy)) okCount++;
+      if ((await testProxy(proxy)).success) okCount++;
     }
     setTestingAll(false);
     toast.info(`Tested ${proxies.length} proxies (${okCount} ok, ${proxies.length - okCount} failed)`);
