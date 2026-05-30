@@ -18,6 +18,10 @@ COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 COPY . .
 
+# NEXT_PUBLIC_* is inlined at build time, so it must be set before next build.
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 RUN pnpm --filter @xcrawl/shared build
 RUN pnpm --filter @xcrawl/web build
 

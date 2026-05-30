@@ -1,6 +1,6 @@
-FROM node:20-alpine AS base
+FROM node:20-bookworm-slim AS base
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@10.29.3 --activate
-RUN apk add --no-cache libc6-compat
 
 WORKDIR /app
 
@@ -22,8 +22,8 @@ COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules
 COPY --from=deps /app/packages/crawler/node_modules ./packages/crawler/node_modules
 COPY . .
 
-# Generate Prisma client
-RUN pnpm --filter @xcrawl/db generate
+# Generate Prisma client (dummy URL — generate reads schema, never connects)
+RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" pnpm --filter @xcrawl/db generate
 
 # Build packages and API
 RUN pnpm --filter @xcrawl/shared build
@@ -31,19 +31,45 @@ RUN pnpm --filter @xcrawl/db build
 RUN pnpm --filter @xcrawl/crawler build
 RUN pnpm --filter @xcrawl/api build
 
+# Download Playwright chromium into the build cache (binary lands in /root/.cache/ms-playwright)
+RUN pnpm --filter @xcrawl/crawler exec playwright install chromium
+
 # Production
 FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 
+# Root node_modules holds the pnpm store + workspace symlinks
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/apps/api/dist ./dist
-COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
-COPY --from=builder /app/packages/db/node_modules/.prisma ./node_modules/.prisma
 
-# Install Playwright browsers
-RUN npx playwright install --with-deps chromium
+# API build output + its node_modules
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
+
+# Workspace packages — dist + node_modules + package.json are the symlink targets
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder /app/packages/shared/node_modules ./packages/shared/node_modules
+COPY --from=builder /app/packages/shared/package.json ./packages/shared/package.json
+COPY --from=builder /app/packages/db/dist ./packages/db/dist
+COPY --from=builder /app/packages/db/node_modules ./packages/db/node_modules
+COPY --from=builder /app/packages/db/package.json ./packages/db/package.json
+COPY --from=builder /app/packages/crawler/dist ./packages/crawler/dist
+COPY --from=builder /app/packages/crawler/node_modules ./packages/crawler/node_modules
+COPY --from=builder /app/packages/crawler/package.json ./packages/crawler/package.json
+
+# Chromium runtime system libraries (explicit list — no dependency on the
+# playwright CLI being resolvable in this stage; that was the original failure)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libnss3 libnspr4 libatk-bridge2.0-0 libatk1.0-0 libcups2 libdrm2 \
+    libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
+    libpango-1.0-0 libcairo2 libasound2 libatspi2.0-0 libx11-6 libxcb1 \
+    libxext6 libxi6 libxshmfence1 fonts-liberation procps \
+    && rm -rf /var/lib/apt/lists/*
+
+# Browser binary downloaded in the builder stage
+COPY --from=builder /root/.cache/ms-playwright /root/.cache/ms-playwright
 
 EXPOSE 3001
-CMD ["node", "dist/main.js"]
+CMD ["node", "apps/api/dist/main.js"]
