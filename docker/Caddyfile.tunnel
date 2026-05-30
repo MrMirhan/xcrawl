@@ -1,0 +1,44 @@
+# XCrawl reverse proxy — Cloudflare Tunnel mode (HTTP only, no TLS).
+#
+# Cloudflare terminates TLS at the edge and forwards plain HTTP to the
+# cloudflared container, which hits this Caddy on :80. No ACME, no public
+# ports. For the public-port deployment with Let's Encrypt see ./Caddyfile.
+#
+# Routing (paths forwarded untouched — NestJS expects /api/v1/...):
+#   /api/*       -> api:3001  (NestJS, global prefix /api/v1)
+#   /mcp*        -> api:3001  (excluded from global prefix in main.ts)
+#   /metrics     -> api:3001  (excluded from global prefix in main.ts)
+#   /socket.io/* -> api:3001  (Socket.IO long-poll + WebSocket upgrade)
+#   /            -> web:3000  (Next.js dashboard)
+
+{
+	auto_https off
+	admin off
+	servers {
+		trusted_proxies static 0.0.0.0/0 ::/0
+	}
+}
+
+:80 {
+	encode gzip zstd
+
+	@api path /api/* /mcp* /metrics /socket.io/*
+	handle @api {
+		reverse_proxy api:3001
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+
+	@dotfiles path /.env* /.git/* /.htaccess
+	respond @dotfiles 404
+}
