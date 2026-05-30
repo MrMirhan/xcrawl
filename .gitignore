@@ -11,6 +11,10 @@ packages/db/src/generated/
 .env
 .env.local
 .env.*.local
+.env.tunnel
+
+# Tunnel deploy credentials
+docker/.cloudflared/
 
 # Crawlee runtime storage
 **/storage/
