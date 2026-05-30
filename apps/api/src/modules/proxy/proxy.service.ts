@@ -1,5 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
+import * as https from 'https';
+import type { Agent } from 'http';
 import { PrismaService } from '../prisma/prisma.service';
+
+// https-proxy-agent@8 is ESM-only (exports map has no `require`/`main`). Under
+// `module: commonjs` tsc would downlevel a plain `import()` into `require()`,
+// which throws `No "exports" main defined` at runtime. Indirecting through
+// Function() preserves a genuine runtime dynamic import that Node's ESM
+// resolver can satisfy.
+type HttpsProxyAgentModule = {
+  HttpsProxyAgent: new (proxy: string) => Agent;
+};
+const importEsm = new Function('specifier', 'return import(specifier)') as (
+  specifier: string,
+) => Promise<unknown>;
 
 @Injectable()
 export class ProxyService {
@@ -35,9 +49,9 @@ export class ProxyService {
   async testProxy(proxyUrl: string): Promise<{ success: boolean; latency?: number; error?: string }> {
     const start = Date.now();
     return new Promise((resolve) => {
-      // @ts-expect-error dynamic import types not resolvable under commonjs moduleResolution
-      Promise.all([import('https-proxy-agent'), import('https')]).then(
-        ([{ HttpsProxyAgent }, https]) => {
+      importEsm('https-proxy-agent')
+        .then((mod) => {
+          const { HttpsProxyAgent } = mod as HttpsProxyAgentModule;
           const agent = new HttpsProxyAgent(proxyUrl);
           const req = https.request(
             'https://httpbin.org/ip',
@@ -54,8 +68,8 @@ export class ProxyService {
             resolve({ success: false, error: 'Connection timed out' });
           });
           req.end();
-        },
-      ).catch((err: Error) => resolve({ success: false, error: err.message }));
+        })
+        .catch((err: Error) => resolve({ success: false, error: err.message }));
     });
   }
 
