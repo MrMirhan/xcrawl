@@ -87,6 +87,7 @@ export default function ProxiesPage() {
   };
 
   const handleClearAll = () => {
+    if (!confirm('Tüm proxyleri silmek istediğine emin misin?')) return;
     saveProxies([], 'All proxies cleared', 'Failed to clear proxies');
     setProxyStatus({});
   };
@@ -131,6 +132,29 @@ export default function ProxiesPage() {
     }
     setTestingAll(false);
     toast.info(`Tested ${proxies.length} proxies (${okCount} ok, ${proxies.length - okCount} failed)`);
+  };
+
+  const handleRemoveDead = async () => {
+    if (!confirm('Tüm proxyleri test edip çalışmayanları sileyim mi?')) return;
+
+    setTestingAll(true);
+    const working: string[] = [];
+    const batchSize = 10;
+    for (let i = 0; i < proxies.length; i += batchSize) {
+      const batch = proxies.slice(i, i + batchSize);
+      const results = await Promise.all(batch.map((proxy) => testProxy(proxy)));
+      batch.forEach((proxy, j) => {
+        if (results[j].success) working.push(proxy);
+      });
+    }
+    setTestingAll(false);
+
+    const dead = proxies.length - working.length;
+    if (dead === 0) {
+      toast.info('Hepsi çalışıyor');
+      return;
+    }
+    await saveProxies(working, `${dead} çalışmayan silindi, ${working.length} çalışıyor`, 'Failed to update proxies');
   };
 
   return (
@@ -202,10 +226,22 @@ export default function ProxiesPage() {
             <CardTitle className="text-base">Your Proxies</CardTitle>
             <div className="flex items-center gap-2">
               {proxies.length > 0 && (
-                <Button variant="outline" size="sm" onClick={testAllProxies} disabled={testingAll} className="h-7">
-                  {testingAll ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wifi className="h-3 w-3" />}
-                  {testingAll ? 'Testing...' : 'Test All'}
-                </Button>
+                <>
+                  <Button variant="outline" size="sm" onClick={testAllProxies} disabled={testingAll} className="h-7">
+                    {testingAll ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wifi className="h-3 w-3" />}
+                    {testingAll ? 'Testing...' : 'Test All'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRemoveDead}
+                    disabled={testingAll || saving}
+                    className="h-7 text-destructive hover:text-destructive"
+                  >
+                    {testingAll ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                    Çalışmayanları Sil
+                  </Button>
+                </>
               )}
               <Badge variant="secondary">{proxies.length} total</Badge>
             </div>

@@ -24,6 +24,7 @@ import type {
   AddProxyRequest,
   ProxyTestResult,
   ProxyMutationResponse,
+  ClearAllProxiesResponse,
   UserProfile,
   UserSettings,
   UpdateUserSettingsRequest,
@@ -257,6 +258,8 @@ export const apiClient = {
     request<ProxyConfig[]>('/proxies', { apiKey }),
   removeProxy: (id: string, apiKey: string): Promise<ProxyMutationResponse> =>
     request<ProxyMutationResponse>(`/proxies/${id}`, { method: 'DELETE', apiKey }),
+  clearAllProxies: (apiKey?: string): Promise<ClearAllProxiesResponse> =>
+    request<ClearAllProxiesResponse>('/proxies', { method: 'DELETE', apiKey }),
   testProxy: (url: string, apiKey: string): Promise<ProxyTestResult> =>
     request<ProxyTestResult>('/proxies/test', { body: { url }, apiKey }),
 

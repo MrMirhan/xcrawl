@@ -24,3 +24,8 @@ export interface ProxyTestResult {
 export interface ProxyMutationResponse {
   success: boolean;
 }
+
+export interface ClearAllProxiesResponse {
+  success: boolean;
+  count: number;
+}

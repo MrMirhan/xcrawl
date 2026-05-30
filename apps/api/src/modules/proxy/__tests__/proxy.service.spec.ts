@@ -5,6 +5,7 @@ const mockPrismaService = {
     create: jest.fn(),
     findMany: jest.fn(),
     update: jest.fn(),
+    deleteMany: jest.fn(),
   },
 };
 
@@ -150,6 +151,32 @@ describe('ProxyService', () => {
       expect(mockPrismaService.proxyConfig.update).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: 'proxy-specific-id' } }),
       );
+    });
+  });
+
+  describe('clearAllProxies', () => {
+    it('hard-deletes every proxy via deleteMany with an empty filter', async () => {
+      mockPrismaService.proxyConfig.deleteMany.mockResolvedValue({ count: 0 });
+
+      await service.clearAllProxies();
+
+      expect(mockPrismaService.proxyConfig.deleteMany).toHaveBeenCalledWith({});
+    });
+
+    it('returns success with the number of deleted proxies', async () => {
+      mockPrismaService.proxyConfig.deleteMany.mockResolvedValue({ count: 3 });
+
+      const result = await service.clearAllProxies();
+
+      expect(result).toEqual({ success: true, count: 3 });
+    });
+
+    it('returns count 0 when no proxies exist', async () => {
+      mockPrismaService.proxyConfig.deleteMany.mockResolvedValue({ count: 0 });
+
+      const result = await service.clearAllProxies();
+
+      expect(result).toEqual({ success: true, count: 0 });
     });
   });
 

@@ -69,6 +69,11 @@ export class ProxyService {
     return { success: true };
   }
 
+  async clearAllProxies() {
+    const { count } = await this.prisma.proxyConfig.deleteMany({});
+    return { success: true, count };
+  }
+
   async testProxy(proxyUrl: string): Promise<{ success: boolean; latency?: number; error?: string }> {
     const start = Date.now();
     let agent: Agent;

@@ -20,6 +20,11 @@ export class ProxyController {
     return this.proxyService.listProxies();
   }
 
+  @Delete()
+  async clearAll() {
+    return this.proxyService.clearAllProxies();
+  }
+
   @Delete(':id')
   async remove(@Param('id') id: string) {
     return this.proxyService.removeProxy(id);
