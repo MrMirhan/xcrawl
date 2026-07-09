@@ -17,7 +17,6 @@ import { McpController } from '../../../modules/mcp/mcp.controller';
 import { UserAuthController } from '../../../modules/user-auth/user-auth.controller';
 import { HealthController } from '../../../modules/health/health.controller';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type GuardClass = new (...args: any[]) => unknown;
 
 /**

@@ -73,12 +73,8 @@ jobs:
       - name: Generate Prisma client
         run: pnpm run db:generate
 
-      # Non-blocking: apps/api's `lint` script (`eslint src`) currently fails because
-      # `eslint` is missing from apps/api/package.json devDependencies (apps/web lint is
-      # clean). Flip to blocking once eslint is added as a devDependency for @xcrawl/api.
-      - name: Lint (non-blocking)
+      - name: Lint
         run: pnpm run lint
-        continue-on-error: true
 
       - name: Build all packages
         run: pnpm run build

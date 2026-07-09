@@ -1,4 +1,4 @@
-import { IsString, IsUrl, IsOptional, IsArray, IsBoolean, IsNumber, IsEnum, ValidateNested, IsIn } from 'class-validator';
+import { IsString, IsUrl, IsOptional, IsArray, IsBoolean, IsNumber, ValidateNested, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class BrowserActionDto {
