@@ -63,12 +63,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Non-blocking: current tree has 43 high + 1 critical advisories (e.g. handlebars via
-      # ts-jest, undici via cheerio, ws via socket.io/jsdom) with no patched versions pulled
-      # in yet by our direct deps. Flip to blocking once those are cleared/patched upstream.
-      - name: Audit dependencies (non-blocking)
+      # Blocking: all high/critical advisories are patched via pnpm.overrides in the root
+      # package.json (undici, ws, tar, multer, hono stack, picomatch, handlebars, etc).
+      # Only moderate/low advisories remain, which this gate does not check.
+      - name: Audit dependencies
         run: pnpm audit --audit-level=high
-        continue-on-error: true
 
       - name: Generate Prisma client
         run: pnpm run db:generate
