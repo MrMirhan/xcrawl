@@ -24,20 +24,35 @@ services:
       - api
       - web
 
+  cloudflared-init:
+    image: alpine:3
+    restart: "no"
+    environment:
+      TUNNEL_CRED_B64: ${TUNNEL_CRED_B64}
+    volumes:
+      - cloudflared-creds:/creds
+    command:
+      - sh
+      - -c
+      - 'echo "$$TUNNEL_CRED_B64" | base64 -d > /creds/REDACTED-TUNNEL-ID.json'
+    networks:
+      - xcrawl-internal
+
   cloudflared:
     image: cloudflare/cloudflared:2026.5.2
     restart: unless-stopped
     command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
     volumes:
       - ./docker/cloudflared.yml:/etc/cloudflared/config.yml:ro
-      # Credentials JSON is not in the repo (gitignored secret). Dokploy
-      # supplies it as a file mount at
-      # /etc/cloudflared/creds/REDACTED-TUNNEL-ID.json,
-      # matching credentials-file: in docker/cloudflared.yml.
+      - cloudflared-creds:/etc/cloudflared/creds:ro
+      # Creds are written by cloudflared-init, which decodes TUNNEL_CRED_B64.
     networks:
       - xcrawl-internal
     depends_on:
-      - caddy
+      cloudflared-init:
+        condition: service_completed_successfully
+      caddy:
+        condition: service_started
 
   postgres:
     image: postgres:17-alpine
@@ -209,6 +224,8 @@ volumes:
     name: xcrawl-prod-caddy-data
   caddy-config:
     name: xcrawl-prod-caddy-config
+  cloudflared-creds:
+    name: xcrawl-prod-cloudflared-creds
 
 networks:
   xcrawl-internal:
