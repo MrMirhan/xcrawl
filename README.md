@@ -27,7 +27,7 @@
 - **Crawl** — Recursive site crawl with depth limits, path regex filters, concurrency control
 - **Batch** — Scrape hundreds of URLs concurrently with retry
 - **Map** — Discover all URLs on a site (sitemap + link extraction)
-- **Search** — Web search + full-page scraping via self-hosted SearXNG
+- **Search** — Web search (self-hosted SearXNG if configured, DuckDuckGo otherwise) + full-page scraping of results
 - **Extract** — AI-powered structured extraction with JSON schema or natural language prompt
 
 ### Crawler Engine
@@ -146,7 +146,7 @@ Login with the email and password you set in `.env`.
 
 ## API Reference
 
-All endpoints require authentication via `Authorization: Bearer <jwt>` or `X-API-Key: <key>`.
+All endpoints require authentication via `Authorization: Bearer <jwt>` or `X-API-Key: <key>`. Every request is rate-limited (Redis-backed sliding window, higher ceiling once authenticated), and scrape/crawl targets are checked against private and link-local IP ranges to block SSRF.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -155,16 +155,23 @@ All endpoints require authentication via `Authorization: Bearer <jwt>` or `X-API
 | `GET` | `/api/v1/crawl/:id` | Poll crawl status and results |
 | `DELETE` | `/api/v1/crawl/:id` | Cancel a running crawl |
 | `POST` | `/api/v1/batch/scrape` | Batch scrape multiple URLs (async) |
+| `GET` | `/api/v1/batch/scrape/:id` | Poll batch status and results |
 | `POST` | `/api/v1/map` | Discover all URLs on a site |
 | `POST` | `/api/v1/search` | Search the web + scrape results |
-| `POST` | `/api/v1/extract` | AI-powered structured extraction |
+| `POST` | `/api/v1/extract` | AI-powered structured extraction (async) |
+| `GET` | `/api/v1/extract/:id` | Poll extract status and results |
 | `POST` | `/api/v1/user/signup` | Create account |
 | `POST` | `/api/v1/user/signin` | Sign in and get JWT |
 | `GET` | `/api/v1/user/settings` | Get per-user settings |
 | `PATCH` | `/api/v1/user/settings` | Update LLM/proxy/search config |
+| `POST` | `/api/v1/auth/keys` | Create an API key |
+| `GET` | `/api/v1/auth/keys` | List API keys (masked) |
+| `DELETE` | `/api/v1/auth/keys/:id` | Revoke an API key |
 | `GET` | `/api/v1/jobs` | List all jobs |
 | `GET` | `/api/v1/jobs/stats` | Dashboard statistics |
 | `POST` | `/api/v1/schedules` | Create recurring schedule |
+| `POST` | `/api/v1/webhooks` | Register a webhook |
+| `POST` | `/api/v1/proxies` | Add a proxy to your pool |
 
 Interactive docs at `/api/docs` (Swagger UI).
 
@@ -237,6 +244,8 @@ docker compose up -d --build
 ```
 
 Everything runs behind one Caddy reverse proxy with automatic HTTPS — API, dashboard, MCP, Socket.IO all served from a single domain. Workers scale via `deploy.replicas`. Behind NAT or want Cloudflare's edge? A Cloudflare Tunnel service ships commented in `docker-compose.yml`.
+
+Deploying with [Dokploy](https://dokploy.com/)? `docker-compose.dokploy.yml` runs the same stack from a git-based deploy — Dokploy builds every service from source (no image registry) and injects Cloudflare Tunnel credentials via a `cloudflared-init` sidecar instead of a mounted file.
 
 Full walkthrough — VPS quick start, Cloudflare Tunnel setup, backups, updates, troubleshooting — in [docs/deployment.md](docs/deployment.md). MCP client setup in [docs/mcp.md](docs/mcp.md).
 

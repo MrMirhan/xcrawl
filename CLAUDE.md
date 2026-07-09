@@ -58,7 +58,7 @@ packages/* have zero workspace dependencies
 
 ### API (NestJS)
 
-18 feature modules in `apps/api/src/modules/`. Each module owns its controller, service, DTO, and BullMQ processor (if async). Infrastructure modules (Prisma, CrawlerEngine, Storage, Cache, Gateway) are shared singletons.
+20 module directories in `apps/api/src/modules/` — 15 feature modules (`auth`, `batch`, `cleanup`, `crawl`, `extract`, `health`, `job`, `map`, `mcp`, `proxy`, `schedule`, `scrape`, `search`, `user-auth`, `webhook`), each owning its controller, service, DTO, and BullMQ processor (if async), plus 5 infrastructure modules (Prisma, CrawlerEngine, Storage, Cache, Gateway) that are shared singletons. Note: `auth` is API-key CRUD (`/auth/keys`); JWT signup/signin/settings live in `user-auth`.
 
 **Route structure:** All endpoints under `/api/v1`. Swagger docs at `/api/docs`.
 
@@ -68,6 +68,8 @@ packages/* have zero workspace dependencies
 **Auth:** Dual-strategy via `ApiKeyGuard`. JWT Bearer (from `/user/signin`) OR `X-API-Key` header. Guard sets `req.userId` and optionally `req.apiKeyId`. `UserAuthModule` is `@Global()`.
 
 **Job queue:** BullMQ backed by Redis. Queues defined as constants in `@xcrawl/shared`: `scrape`, `crawl`, `batch-scrape`, `extract`, `webhook-delivery`. Socket.IO gateway emits real-time crawl progress.
+
+**MCP transport:** `mcp` module exposes an MCP server (`@modelcontextprotocol/sdk`, Streamable HTTP transport) at `/mcp` — excluded from the `/api/v1` prefix and from Swagger (`@ApiExcludeController`), guarded by the same `ApiKeyGuard` + `ApiKeyRateLimitGuard`. Seven tools registered in `apps/api/src/modules/mcp/tools/`: `scrape`, `crawl`, `map`, `search`, `extract`, `getJob`, `listJobs`. Sessions are held in memory per API process (`McpService`) and swept after 30 min idle — they do not survive a restart.
 
 ### Crawler Engine
 
@@ -425,9 +427,10 @@ Guards set properties on the request object. Access them with inline types:
 
 ### Job Processing Phases
 
-For operations with LLM extraction, use two-phase processing to avoid Crawlee requestHandler timeouts:
-1. **Phase 1:** Crawl/scrape all pages (fast, no LLM).
-2. **Phase 2:** Run LLM extraction on saved results (no time pressure).
+Two different patterns exist for LLM extraction — don't conflate them:
+
+- **`crawl` with `extractSchema`/`extractPrompt` attached** (`crawl.processor.ts`) is two-phase, to avoid Crawlee requestHandler timeouts. Phase 1 crawls all pages via `onPageComplete` and persists `JobResult` rows (fast, no LLM). Phase 2 runs LLM extraction over those saved rows with bounded concurrency (`p-limit`, 5 at a time).
+- **`extract`** (`extract.processor.ts`, the dedicated `/extract` endpoint) is a single loop per URL: scrape → LLM extract → persist, one URL at a time. A failed URL still persists a `JobResult` with the error in `metadata` and processing continues; the job finishes `COMPLETED`/`PARTIAL`/`FAILED` based on `successCount` vs `urls.length`.
 
 ### Webhook Signature
 
@@ -447,8 +450,12 @@ const key = `xc_${crypto.randomBytes(24).toString('hex')}`;
 
 | File | Purpose |
 |------|---------|
-| `apps/api/src/app.module.ts` | Root NestJS module, wires all 18 feature modules |
+| `apps/api/src/app.module.ts` | Root NestJS module, wires all 20 modules (15 feature + 5 infra) |
 | `apps/api/src/common/guards/api-key.guard.ts` | Dual auth guard (JWT + API key) |
+| `apps/api/src/common/guards/rate-limit.guard.ts` | Redis sliding-window rate limiter (`ApiKeyRateLimitGuard`) |
+| `apps/api/src/common/utils/url-validator.ts` | SSRF guard — rejects private/link-local IPs and blocked hostnames |
+| `apps/api/src/modules/mcp/mcp.service.ts` | MCP session lifecycle (`McpServer`, Streamable HTTP transport) |
+| `apps/api/src/modules/mcp/mcp.controller.ts` | `/mcp` route handler (POST/GET/DELETE per MCP spec) |
 | `apps/api/src/config/app.config.ts` | Typed config slices for `@nestjs/config` |
 | `packages/crawler/src/engine.ts` | Core crawling engine with auto-engine selection |
 | `packages/crawler/src/types.ts` | Engine option types |
