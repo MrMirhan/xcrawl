@@ -1,4 +1,5 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@xcrawl/db';
 import { AuthService } from '../auth.service';
 
 jest.mock('bcrypt', () => ({
@@ -8,6 +9,13 @@ jest.mock('bcrypt', () => ({
 import * as bcrypt from 'bcrypt';
 
 const mockBcryptHash = bcrypt.hash as jest.MockedFunction<typeof bcrypt.hash>;
+
+function p2002Error(): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError('Unique constraint failed on the fields: (`key`)', {
+    code: 'P2002',
+    clientVersion: '7.5.0',
+  });
+}
 
 const mockPrismaService = {
   apiKey: {
@@ -122,6 +130,36 @@ describe('AuthService', () => {
       await service.createApiKey('Key 2', 'user-123');
 
       expect(rawKeys[0]).not.toBe(rawKeys[1]);
+    });
+
+    it('retries with a freshly generated key when the prefix collides (P2002)', async () => {
+      mockPrismaService.apiKey.create
+        .mockRejectedValueOnce(p2002Error())
+        .mockResolvedValueOnce(createdRecord);
+
+      const result = await service.createApiKey('My Key', 'user-123');
+
+      expect(mockPrismaService.apiKey.create).toHaveBeenCalledTimes(2);
+      expect(result).toMatchObject({ id: createdRecord.id, name: createdRecord.name });
+
+      const [firstAttempt, secondAttempt] = mockPrismaService.apiKey.create.mock.calls;
+      expect(firstAttempt[0].data.key).not.toBe(secondAttempt[0].data.key);
+    });
+
+    it('gives up with a ConflictException after repeated prefix collisions', async () => {
+      mockPrismaService.apiKey.create.mockRejectedValue(p2002Error());
+
+      await expect(service.createApiKey('My Key', 'user-123')).rejects.toThrow(ConflictException);
+      // Bounded retry: create is attempted a small, fixed number of times, not indefinitely
+      expect(mockPrismaService.apiKey.create.mock.calls.length).toBeLessThanOrEqual(5);
+      expect(mockPrismaService.apiKey.create.mock.calls.length).toBeGreaterThan(1);
+    });
+
+    it('does not retry and rethrows on a non-collision error', async () => {
+      mockPrismaService.apiKey.create.mockRejectedValue(new Error('DB connection lost'));
+
+      await expect(service.createApiKey('My Key', 'user-123')).rejects.toThrow('DB connection lost');
+      expect(mockPrismaService.apiKey.create).toHaveBeenCalledTimes(1);
     });
   });
 

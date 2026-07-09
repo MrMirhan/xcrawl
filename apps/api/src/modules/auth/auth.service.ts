@@ -1,26 +1,39 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@xcrawl/db';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+
+const MAX_KEY_CREATE_ATTEMPTS = 5;
 
 @Injectable()
 export class AuthService {
   constructor(private prisma: PrismaService) {}
 
   async createApiKey(name: string, userId?: string) {
-    const rawKey = `xc_${crypto.randomBytes(24).toString('hex')}`;
-    const hashedKey = await bcrypt.hash(rawKey, 10);
+    for (let attempt = 1; attempt <= MAX_KEY_CREATE_ATTEMPTS; attempt++) {
+      const rawKey = `xc_${crypto.randomBytes(24).toString('hex')}`;
+      const hashedKey = await bcrypt.hash(rawKey, 10);
 
-    const apiKey = await this.prisma.apiKey.create({
-      data: { name, key: rawKey.slice(0, 8), hashedKey, userId },
-    });
+      try {
+        const apiKey = await this.prisma.apiKey.create({
+          data: { name, key: rawKey.slice(0, 8), hashedKey, userId },
+        });
 
-    return {
-      id: apiKey.id,
-      name: apiKey.name,
-      key: rawKey, // Only shown once at creation
-      createdAt: apiKey.createdAt,
-    };
+        return {
+          id: apiKey.id,
+          name: apiKey.name,
+          key: rawKey, // Only shown once at creation
+          createdAt: apiKey.createdAt,
+        };
+      } catch (error) {
+        // Prefix is 8 chars (xc_ + 5 hex) — collisions are expected at scale, retry with a fresh key
+        const isPrefixCollision = error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+        if (!isPrefixCollision) throw error;
+      }
+    }
+
+    throw new ConflictException('Could not generate a unique API key, please try again');
   }
 
   async listApiKeys(userId?: string) {
