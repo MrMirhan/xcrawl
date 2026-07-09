@@ -332,6 +332,40 @@ describe('ExtractProcessor', () => {
 
         expect(mockLlmService.extract).toHaveBeenCalledWith('', expect.any(Object));
       });
+
+      it('falls back to html when markdown is an empty string', async () => {
+        mockCrawlerEngineService.instance.scrape.mockResolvedValue({
+          markdown: '',
+          html: '<h1>Product</h1>',
+          metadata: {},
+        });
+
+        const job = buildBullJob({ jobId, urls: [urls[0]], schema, prompt });
+
+        await processor.process(job);
+
+        expect(mockLlmService.extract).toHaveBeenCalledWith(
+          '<h1>Product</h1>',
+          expect.any(Object),
+        );
+      });
+
+      it('uses markdown directly when it has real content', async () => {
+        mockCrawlerEngineService.instance.scrape.mockResolvedValue({
+          markdown: '# Product Page',
+          html: '<h1>Product Page</h1>',
+          metadata: {},
+        });
+
+        const job = buildBullJob({ jobId, urls: [urls[0]], schema, prompt });
+
+        await processor.process(job);
+
+        expect(mockLlmService.extract).toHaveBeenCalledWith(
+          '# Product Page',
+          expect.any(Object),
+        );
+      });
     });
   });
 });

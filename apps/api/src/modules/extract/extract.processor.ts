@@ -45,8 +45,12 @@ export class ExtractProcessor extends WorkerHost {
 
         this.logger.log(`Extracting from ${url} with prompt="${prompt?.slice(0, 50)}"`);
 
+        const content = scrapeResult.markdown && scrapeResult.markdown.length > 0
+          ? scrapeResult.markdown
+          : (scrapeResult.html ?? '');
+
         const extractedData = await this.llm.extract(
-          scrapeResult.markdown || scrapeResult.html || '',
+          content,
           {
             schema,
             prompt,
