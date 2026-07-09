@@ -3,10 +3,11 @@ import { ApiTags, ApiSecurity } from '@nestjs/swagger';
 import { ExtractService } from './extract.service';
 import { ExtractRequestDto } from './dto/extract-request.dto';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
+import { ApiKeyRateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 @ApiTags('Extract')
 @Controller('extract')
-@UseGuards(ApiKeyGuard)
+@UseGuards(ApiKeyGuard, ApiKeyRateLimitGuard)
 @ApiSecurity('api-key')
 export class ExtractController {
   constructor(private extractService: ExtractService) {}

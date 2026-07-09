@@ -3,6 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { UserAuthService } from './user-auth.service';
 import { SignupDto, SigninDto, UpdateSettingsDto } from './dto/auth.dto';
+import { ApiKeyRateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 @ApiTags('User Auth')
 @Controller('user')
@@ -10,11 +11,13 @@ export class UserAuthController {
   constructor(private userAuth: UserAuthService) {}
 
   @Post('signup')
+  @UseGuards(ApiKeyRateLimitGuard)
   async signup(@Body() dto: SignupDto) {
     return this.userAuth.signup(dto);
   }
 
   @Post('signin')
+  @UseGuards(ApiKeyRateLimitGuard)
   async signin(@Body() dto: SigninDto) {
     return this.userAuth.signin(dto);
   }

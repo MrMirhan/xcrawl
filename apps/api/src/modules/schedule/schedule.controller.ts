@@ -3,10 +3,11 @@ import { ApiTags, ApiSecurity } from '@nestjs/swagger';
 import { ScheduleService } from './schedule.service';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
+import { ApiKeyRateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 @ApiTags('Schedules')
 @Controller('schedules')
-@UseGuards(ApiKeyGuard)
+@UseGuards(ApiKeyGuard, ApiKeyRateLimitGuard)
 @ApiSecurity('api-key')
 export class ScheduleController {
   constructor(private scheduleService: ScheduleService) {}

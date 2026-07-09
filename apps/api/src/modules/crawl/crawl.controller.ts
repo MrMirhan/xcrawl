@@ -3,10 +3,11 @@ import { ApiTags, ApiSecurity } from '@nestjs/swagger';
 import { CrawlService } from './crawl.service';
 import { CrawlRequestDto } from './dto/crawl-request.dto';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
+import { ApiKeyRateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 @ApiTags('Crawl')
 @Controller('crawl')
-@UseGuards(ApiKeyGuard)
+@UseGuards(ApiKeyGuard, ApiKeyRateLimitGuard)
 @ApiSecurity('api-key')
 export class CrawlController {
   constructor(private crawlService: CrawlService) {}

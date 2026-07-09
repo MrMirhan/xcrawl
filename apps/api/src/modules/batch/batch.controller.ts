@@ -3,10 +3,11 @@ import { ApiTags, ApiSecurity } from '@nestjs/swagger';
 import { BatchService } from './batch.service';
 import { BatchScrapeRequestDto } from './dto/batch-request.dto';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
+import { ApiKeyRateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 @ApiTags('Batch')
 @Controller('batch/scrape')
-@UseGuards(ApiKeyGuard)
+@UseGuards(ApiKeyGuard, ApiKeyRateLimitGuard)
 @ApiSecurity('api-key')
 export class BatchController {
   constructor(private batchService: BatchService) {}

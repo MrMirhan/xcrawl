@@ -4,11 +4,12 @@ import { Response } from 'express';
 import { StorageService } from './storage.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
+import { ApiKeyRateLimitGuard } from '../../common/guards/rate-limit.guard';
 import { ownedWhere } from '../../common/utils/ownership';
 
 @ApiTags('Storage')
 @Controller('storage')
-@UseGuards(ApiKeyGuard)
+@UseGuards(ApiKeyGuard, ApiKeyRateLimitGuard)
 @ApiSecurity('api-key')
 export class StorageController {
   constructor(

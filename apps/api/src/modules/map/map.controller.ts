@@ -3,10 +3,11 @@ import { ApiTags, ApiSecurity } from '@nestjs/swagger';
 import { MapService } from './map.service';
 import { MapRequestDto } from './dto/map-request.dto';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
+import { ApiKeyRateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 @ApiTags('Map')
 @Controller('map')
-@UseGuards(ApiKeyGuard)
+@UseGuards(ApiKeyGuard, ApiKeyRateLimitGuard)
 @ApiSecurity('api-key')
 export class MapController {
   constructor(private mapService: MapService) {}

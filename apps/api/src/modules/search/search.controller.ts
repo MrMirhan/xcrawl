@@ -3,11 +3,12 @@ import { ApiTags, ApiSecurity } from '@nestjs/swagger';
 import { SearchService } from './search.service';
 import { SearchRequestDto } from './dto/search-request.dto';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
+import { ApiKeyRateLimitGuard } from '../../common/guards/rate-limit.guard';
 import { PrismaService } from '../prisma/prisma.service';
 
 @ApiTags('Search')
 @Controller('search')
-@UseGuards(ApiKeyGuard)
+@UseGuards(ApiKeyGuard, ApiKeyRateLimitGuard)
 @ApiSecurity('api-key')
 export class SearchController {
   constructor(

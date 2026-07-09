@@ -273,6 +273,14 @@ describe('ApiKeyRateLimitGuard', () => {
       const rateLimitKey = mockPipeline.zremrangebyscore.mock.calls[0][0] as string;
       expect(rateLimitKey).toBe(`ratelimit:ip:${expectedHash}`);
     });
+
+    it('does not throw on an unauthenticated signin/signup request (no userId, no apiKeyId, no header)', async () => {
+      mockPipelineExec.mockResolvedValue(buildPipelineResult(1));
+
+      const ctx = buildContext({ url: '/api/v1/user/signin', ip: '203.0.113.9' });
+
+      await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    });
   });
 
   describe('auth-aware limits', () => {

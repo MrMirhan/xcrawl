@@ -2,10 +2,11 @@ import { Controller, Post, Get, Delete, Param, Body, UseGuards } from '@nestjs/c
 import { ApiTags, ApiSecurity } from '@nestjs/swagger';
 import { ProxyService } from './proxy.service';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
+import { ApiKeyRateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 @ApiTags('Proxies')
 @Controller('proxies')
-@UseGuards(ApiKeyGuard)
+@UseGuards(ApiKeyGuard, ApiKeyRateLimitGuard)
 @ApiSecurity('api-key')
 export class ProxyController {
   constructor(private proxyService: ProxyService) {}

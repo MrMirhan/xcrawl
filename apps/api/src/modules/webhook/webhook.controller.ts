@@ -2,10 +2,11 @@ import { Controller, Post, Get, Patch, Delete, Param, Body, UseGuards, Req } fro
 import { ApiTags, ApiSecurity } from '@nestjs/swagger';
 import { WebhookService } from './webhook.service';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
+import { ApiKeyRateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 @ApiTags('Webhooks')
 @Controller('webhooks')
-@UseGuards(ApiKeyGuard)
+@UseGuards(ApiKeyGuard, ApiKeyRateLimitGuard)
 @ApiSecurity('api-key')
 export class WebhookController {
   constructor(private webhookService: WebhookService) {}

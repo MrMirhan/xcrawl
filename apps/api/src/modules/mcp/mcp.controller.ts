@@ -13,6 +13,7 @@ import { ApiExcludeController } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
+import { ApiKeyRateLimitGuard } from '../../common/guards/rate-limit.guard';
 import { McpService } from './mcp.service';
 
 interface AuthedRequest extends Request {
@@ -22,7 +23,7 @@ interface AuthedRequest extends Request {
 
 @ApiExcludeController()
 @Controller('mcp')
-@UseGuards(ApiKeyGuard)
+@UseGuards(ApiKeyGuard, ApiKeyRateLimitGuard)
 export class McpController {
   private readonly logger = new Logger(McpController.name);
 

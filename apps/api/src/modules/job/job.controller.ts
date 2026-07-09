@@ -2,10 +2,11 @@ import { Controller, Get, Post, Param, Query, Req, UseGuards } from '@nestjs/com
 import { ApiTags, ApiSecurity } from '@nestjs/swagger';
 import { JobService } from './job.service';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
+import { ApiKeyRateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 @ApiTags('Jobs')
 @Controller('jobs')
-@UseGuards(ApiKeyGuard)
+@UseGuards(ApiKeyGuard, ApiKeyRateLimitGuard)
 @ApiSecurity('api-key')
 export class JobController {
   constructor(private jobService: JobService) {}
