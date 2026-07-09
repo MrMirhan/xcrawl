@@ -333,7 +333,7 @@ describe('ApiKeyRateLimitGuard', () => {
     it('honours the @SkipRateLimit() metadata flag', async () => {
       jest
         .spyOn(reflector, 'getAllAndOverride')
-        .mockImplementation((key: string) => (key === RATE_LIMIT_SKIP_KEY ? true : undefined));
+        .mockImplementation((key: unknown) => (key === RATE_LIMIT_SKIP_KEY ? true : undefined));
 
       const result = await guard.canActivate(buildContext({ apiKey: 'k' }));
 
@@ -346,7 +346,7 @@ describe('ApiKeyRateLimitGuard', () => {
     it('respects a per-route limit lower than the default', async () => {
       jest
         .spyOn(reflector, 'getAllAndOverride')
-        .mockImplementation((key: string) =>
+        .mockImplementation((key: unknown) =>
           key === RATE_LIMIT_KEY ? { limit: 2, window: 30 } : undefined,
         );
 
@@ -362,7 +362,7 @@ describe('ApiKeyRateLimitGuard', () => {
     it('uses the override window for expire', async () => {
       jest
         .spyOn(reflector, 'getAllAndOverride')
-        .mockImplementation((key: string) =>
+        .mockImplementation((key: unknown) =>
           key === RATE_LIMIT_KEY ? { limit: 50, window: 10 } : undefined,
         );
 

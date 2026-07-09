@@ -1,25 +1,22 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "module": "commonjs",
+    "moduleResolution": "node",
+    "composite": false,
     "declaration": false,
+    "declarationMap": false,
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
-    "target": "ES2022",
-    "sourceMap": true,
     "outDir": "./dist",
     "rootDir": "./src",
     "baseUrl": "./",
     "incremental": true,
-    "skipLibCheck": true,
-    "strictNullChecks": true,
-    "noImplicitAny": true,
-    "strictBindCallApply": true,
-    "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
-    "resolveJsonModule": true,
-    "esModuleInterop": true,
+    // DTOs are populated by the ValidationPipe, not constructors
+    "strictPropertyInitialization": false,
     "paths": {
       "@/*": ["./src/*"]
     },

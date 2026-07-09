@@ -120,8 +120,8 @@ describe('AuthService', () => {
 
     it('generates a unique key each call', async () => {
       const rawKeys: string[] = [];
-      mockBcryptHash.mockImplementation(async (key: string) => {
-        rawKeys.push(key);
+      mockBcryptHash.mockImplementation(async (key: string | Buffer) => {
+        rawKeys.push(key as string);
         return 'hashed';
       });
       mockPrismaService.apiKey.create.mockResolvedValue(createdRecord);
