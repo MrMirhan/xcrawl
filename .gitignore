@@ -18,6 +18,8 @@ docker/.cloudflared/
 
 # Crawlee runtime storage
 **/storage/
+!apps/api/src/modules/storage/
+!apps/api/src/modules/storage/**
 data/
 /tmp/xcrawl*/
 
