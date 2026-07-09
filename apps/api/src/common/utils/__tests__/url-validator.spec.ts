@@ -159,4 +159,20 @@ describe('assertPublicUrl', () => {
       await expect(assertPublicUrl('https://example.com')).resolves.toBeUndefined();
     });
   });
+
+  describe('IPv4-mapped IPv6 blocking', () => {
+    it('blocks AAAA records resolving to ::ffff:127.0.0.1 (mapped loopback)', async () => {
+      mockResolve6.mockResolvedValue(['::ffff:127.0.0.1'] as unknown as Awaited<ReturnType<typeof dns.resolve6>>);
+
+      await expect(assertPublicUrl('https://mapped-loopback.example')).rejects.toThrow(BadRequestException);
+      await expect(assertPublicUrl('https://mapped-loopback.example')).rejects.toThrow('private IP');
+    });
+
+    it('blocks AAAA records resolving to ::ffff:169.254.169.254 (mapped cloud metadata)', async () => {
+      mockResolve6.mockResolvedValue(['::ffff:169.254.169.254'] as unknown as Awaited<ReturnType<typeof dns.resolve6>>);
+
+      await expect(assertPublicUrl('https://mapped-metadata.example')).rejects.toThrow(BadRequestException);
+      await expect(assertPublicUrl('https://mapped-metadata.example')).rejects.toThrow('private IP');
+    });
+  });
 });

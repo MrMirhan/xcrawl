@@ -1,5 +1,14 @@
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { ExtractService } from '../extract.service';
+
+// Mock assertPublicUrl so tests don't perform real DNS lookups
+jest.mock('../../../common/utils/url-validator', () => ({
+  assertPublicUrl: jest.fn(),
+}));
+
+import { assertPublicUrl } from '../../../common/utils/url-validator';
+
+const mockAssertPublicUrl = assertPublicUrl as jest.MockedFunction<typeof assertPublicUrl>;
 
 const mockPrismaService = {
   job: {
@@ -18,6 +27,7 @@ describe('ExtractService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockAssertPublicUrl.mockResolvedValue(undefined);
     service = new ExtractService(mockExtractQueue as any, mockPrismaService as any);
   });
 
@@ -82,6 +92,28 @@ describe('ExtractService', () => {
       const result = await service.startExtract(dto as any);
 
       expect(result).toEqual({ success: true, id: createdJob.id });
+    });
+
+    describe('SSRF validation', () => {
+      it('calls assertPublicUrl for every url in the array', async () => {
+        await service.startExtract(dto as any, 'key-1', 'user-1');
+
+        for (const url of dto.urls) {
+          expect(mockAssertPublicUrl).toHaveBeenCalledWith(url);
+        }
+      });
+
+      it('rejects a private target url before enqueueing', async () => {
+        const privateDto = { urls: ['http://127.0.0.1/'], prompt: 'Extract' };
+        mockAssertPublicUrl.mockRejectedValue(
+          new BadRequestException('Access to private IP addresses is not allowed'),
+        );
+
+        await expect(service.startExtract(privateDto as any)).rejects.toThrow(BadRequestException);
+
+        expect(mockPrismaService.job.create).not.toHaveBeenCalled();
+        expect(mockExtractQueue.add).not.toHaveBeenCalled();
+      });
     });
   });
 

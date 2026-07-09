@@ -5,6 +5,15 @@ jest.mock('bullmq', () => ({
   QueueEvents: jest.fn().mockImplementation(() => mockQueueEvents),
 }));
 
+// Mock assertPublicUrl so tests don't perform real DNS lookups
+jest.mock('../../../common/utils/url-validator', () => ({
+  assertPublicUrl: jest.fn(),
+}));
+
+import { assertPublicUrl } from '../../../common/utils/url-validator';
+
+const mockAssertPublicUrl = assertPublicUrl as jest.MockedFunction<typeof assertPublicUrl>;
+
 const mockQueueEvents = {
   close: jest.fn(),
 };
@@ -45,6 +54,7 @@ describe('ScrapeService', () => {
       mockConfigService as unknown as ConstructorParameters<typeof ScrapeService>[3],
     );
     service.onModuleInit();
+    mockAssertPublicUrl.mockResolvedValue(undefined);
   });
 
   describe('onModuleInit / onModuleDestroy', () => {
@@ -70,6 +80,29 @@ describe('ScrapeService', () => {
       mockScrapeQueue.add.mockResolvedValue(mockBullJob);
       mockBullJob.waitUntilFinished.mockResolvedValue(scrapeResult);
       mockCacheService.set.mockResolvedValue(undefined);
+    });
+
+    describe('SSRF validation', () => {
+      it('calls assertPublicUrl with the target url before touching cache or queue', async () => {
+        await service.scrape(baseDto as never);
+
+        expect(mockAssertPublicUrl).toHaveBeenCalledWith(baseDto.url);
+      });
+
+      it('rejects a private/loopback target url before enqueueing', async () => {
+        const { BadRequestException } = await import('@nestjs/common');
+        mockAssertPublicUrl.mockRejectedValue(
+          new BadRequestException('Access to private IP addresses is not allowed'),
+        );
+
+        await expect(service.scrape({ url: 'http://127.0.0.1' } as never)).rejects.toThrow(
+          BadRequestException,
+        );
+
+        expect(mockCacheService.get).not.toHaveBeenCalled();
+        expect(mockPrismaService.job.create).not.toHaveBeenCalled();
+        expect(mockScrapeQueue.add).not.toHaveBeenCalled();
+      });
     });
 
     describe('cache hit', () => {

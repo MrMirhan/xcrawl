@@ -1,5 +1,14 @@
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { BatchService } from '../batch.service';
+
+// Mock assertPublicUrl so tests don't perform real DNS lookups
+jest.mock('../../../common/utils/url-validator', () => ({
+  assertPublicUrl: jest.fn(),
+}));
+
+import { assertPublicUrl } from '../../../common/utils/url-validator';
+
+const mockAssertPublicUrl = assertPublicUrl as jest.MockedFunction<typeof assertPublicUrl>;
 
 const mockPrismaService = {
   job: {
@@ -17,6 +26,7 @@ describe('BatchService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockAssertPublicUrl.mockResolvedValue(undefined);
     service = new BatchService(mockBatchQueue as any, mockPrismaService as any);
   });
 
@@ -85,6 +95,60 @@ describe('BatchService', () => {
           data: expect.objectContaining({ apiKeyId: undefined, userId: undefined }),
         }),
       );
+    });
+
+    describe('SSRF validation', () => {
+      it('calls assertPublicUrl for every url in the array', async () => {
+        await service.startBatch(dto as any, 'key-1', 'user-1');
+
+        for (const url of dto.urls) {
+          expect(mockAssertPublicUrl).toHaveBeenCalledWith(url);
+        }
+      });
+
+      it('rejects the whole batch when one url is private, before enqueueing', async () => {
+        const privateDto = {
+          urls: ['https://example.com/a', 'http://169.254.169.254/latest/meta-data', 'https://example.com/c'],
+        };
+        mockAssertPublicUrl.mockImplementation(async (url: string) => {
+          if (url.includes('169.254.169.254')) {
+            throw new BadRequestException('Access to private IP addresses is not allowed');
+          }
+        });
+
+        await expect(service.startBatch(privateDto as any, 'key-1', 'user-1')).rejects.toThrow(
+          BadRequestException,
+        );
+
+        expect(mockPrismaService.job.create).not.toHaveBeenCalled();
+        expect(mockBatchQueue.add).not.toHaveBeenCalled();
+      });
+
+      it('includes the failing url in the rejection message', async () => {
+        const privateDto = { urls: ['http://127.0.0.1/'] };
+        mockAssertPublicUrl.mockRejectedValue(
+          new BadRequestException('Access to private IP addresses is not allowed'),
+        );
+
+        await expect(service.startBatch(privateDto as any)).rejects.toThrow('http://127.0.0.1/');
+      });
+
+      it('validates webhookUrl and rejects a private webhook target before enqueueing', async () => {
+        const dtoWithWebhook = {
+          urls: ['https://example.com/a'],
+          webhookUrl: 'http://192.168.1.1/hook',
+        };
+        mockAssertPublicUrl.mockImplementation(async (url: string) => {
+          if (url === dtoWithWebhook.webhookUrl) {
+            throw new BadRequestException('Access to private IP addresses is not allowed');
+          }
+        });
+
+        await expect(service.startBatch(dtoWithWebhook as any)).rejects.toThrow(BadRequestException);
+
+        expect(mockPrismaService.job.create).not.toHaveBeenCalled();
+        expect(mockBatchQueue.add).not.toHaveBeenCalled();
+      });
     });
   });
 

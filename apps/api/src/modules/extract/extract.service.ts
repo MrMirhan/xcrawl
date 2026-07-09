@@ -1,10 +1,11 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { ExtractRequestDto } from './dto/extract-request.dto';
 import { QUEUES } from '@xcrawl/shared';
 import { ownedWhere } from '../../common/utils/ownership';
+import { assertPublicUrl } from '../../common/utils/url-validator';
 
 @Injectable()
 export class ExtractService {
@@ -16,6 +17,17 @@ export class ExtractService {
   ) {}
 
   async startExtract(dto: ExtractRequestDto, apiKeyId?: string, userId?: string) {
+    await Promise.all(
+      dto.urls.map(async (url) => {
+        try {
+          await assertPublicUrl(url);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Invalid URL';
+          throw new BadRequestException(`${url}: ${message}`);
+        }
+      }),
+    );
+
     const job = await this.prisma.job.create({
       data: {
         type: 'EXTRACT',

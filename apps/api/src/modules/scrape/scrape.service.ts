@@ -6,6 +6,7 @@ import { CacheService } from '../cache/cache.service';
 import { ScrapeRequestDto } from './dto/scrape-request.dto';
 import { QUEUES } from '@xcrawl/shared';
 import { ConfigService } from '@nestjs/config';
+import { assertPublicUrl } from '../../common/utils/url-validator';
 
 @Injectable()
 export class ScrapeService implements OnModuleInit, OnModuleDestroy {
@@ -31,6 +32,8 @@ export class ScrapeService implements OnModuleInit, OnModuleDestroy {
   }
 
   async scrape(dto: ScrapeRequestDto, apiKeyId?: string, userId?: string) {
+    await assertPublicUrl(dto.url);
+
     const formats = dto.formats ?? ['markdown'];
     const onlyMainContent = dto.onlyMainContent ?? true;
 

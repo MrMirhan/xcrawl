@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CrawlRequestDto } from './dto/crawl-request.dto';
 import { QUEUES } from '@xcrawl/shared';
 import { ownedWhere } from '../../common/utils/ownership';
+import { assertPublicUrl } from '../../common/utils/url-validator';
 
 @Injectable()
 export class CrawlService implements OnModuleInit, OnModuleDestroy {
@@ -36,6 +37,8 @@ export class CrawlService implements OnModuleInit, OnModuleDestroy {
   }
 
   async startCrawl(dto: CrawlRequestDto, apiKeyId?: string, userId?: string) {
+    await assertPublicUrl(dto.url);
+
     const job = await this.prisma.job.create({
       data: {
         type: 'CRAWL',

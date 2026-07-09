@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { CrawlerEngineService } from '../crawler-engine/crawler-engine.service';
+import { assertPublicUrl } from '../../common/utils/url-validator';
 
 @Injectable()
 export class MapService {
@@ -8,6 +9,8 @@ export class MapService {
   constructor(private crawlerEngine: CrawlerEngineService) {}
 
   async map(options: { url: string; search?: string; includeSitemap?: boolean; limit?: number }) {
+    await assertPublicUrl(options.url);
+
     const links = await this.crawlerEngine.instance.map(options);
 
     return {

@@ -33,6 +33,11 @@ function isPrivateIP(ip: string): boolean {
     if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true; // fc00::/7
     if (normalized.startsWith('fe80')) return true; // fe80::/10
     if (normalized === '::') return true;
+    // IPv4-mapped IPv6 (::ffff:a.b.c.d) — unwrap and re-check as IPv4
+    if (normalized.startsWith('::ffff:')) {
+      const embedded = normalized.slice('::ffff:'.length);
+      if (net.isIPv4(embedded)) return isPrivateIP(embedded);
+    }
     return false;
   }
 
@@ -42,6 +47,7 @@ function isPrivateIP(ip: string): boolean {
 /**
  * Validates that a URL points to a public endpoint, not a private/internal network.
  * Throws BadRequestException if the URL targets a private IP or blocked hostname.
+ * Resolves DNS once here; the fetch layer re-resolves independently, so this does not close DNS-rebinding/TOCTOU.
  */
 export async function assertPublicUrl(urlString: string): Promise<void> {
   let parsed: URL;

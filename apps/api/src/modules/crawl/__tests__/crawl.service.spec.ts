@@ -1,10 +1,19 @@
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { CrawlService } from '../crawl.service';
 
 // Mock ioredis before it gets required by the service
 jest.mock('ioredis', () => {
   return jest.fn().mockImplementation(() => mockRedisInstance);
 });
+
+// Mock assertPublicUrl so tests don't perform real DNS lookups
+jest.mock('../../../common/utils/url-validator', () => ({
+  assertPublicUrl: jest.fn(),
+}));
+
+import { assertPublicUrl } from '../../../common/utils/url-validator';
+
+const mockAssertPublicUrl = assertPublicUrl as jest.MockedFunction<typeof assertPublicUrl>;
 
 const mockRedisInstance = {
   exists: jest.fn(),
@@ -44,6 +53,7 @@ describe('CrawlService', () => {
     );
     // Simulate onModuleInit so redis is assigned
     service.onModuleInit();
+    mockAssertPublicUrl.mockResolvedValue(undefined);
   });
 
   describe('onModuleInit / onModuleDestroy', () => {
@@ -132,6 +142,27 @@ describe('CrawlService', () => {
           data: expect.objectContaining({ apiKeyId: undefined, userId: undefined }),
         }),
       );
+    });
+
+    describe('SSRF validation', () => {
+      it('calls assertPublicUrl with the seed url before enqueueing', async () => {
+        await service.startCrawl(dto as any, 'key-1', 'user-1');
+
+        expect(mockAssertPublicUrl).toHaveBeenCalledWith(dto.url);
+      });
+
+      it('rejects a private/loopback seed url before creating the job or enqueueing', async () => {
+        mockAssertPublicUrl.mockRejectedValue(
+          new BadRequestException('Access to private IP addresses is not allowed'),
+        );
+
+        await expect(
+          service.startCrawl({ url: 'http://169.254.169.254/' } as any),
+        ).rejects.toThrow(BadRequestException);
+
+        expect(mockPrismaService.job.create).not.toHaveBeenCalled();
+        expect(mockCrawlQueue.add).not.toHaveBeenCalled();
+      });
     });
   });
 
