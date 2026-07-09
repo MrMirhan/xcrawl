@@ -1,0 +1,215 @@
+name: xcrawl-prod
+
+# Dokploy deployment. Dokploy clones this repo and builds every service from
+# source (no registry). Cloudflare Tunnel reaches Caddy over the internal
+# network only — no service publishes a host port. The `migrate` service
+# pushes the schema and seeds the admin user once, before api/worker start.
+#
+# Cloudflare Tunnel credentials are NOT in the repo — Dokploy supplies them
+# as a file mount on the `cloudflared` service (see its definition below).
+# Volumes are namespaced `xcrawl-prod-*`, matching docker-compose.tunnel.yml,
+# so migrating from manual tunnel-compose to Dokploy reuses existing data.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    volumes:
+      - ./docker/Caddyfile.tunnel:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - xcrawl-internal
+    depends_on:
+      - api
+      - web
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.5.2
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./docker/cloudflared.yml:/etc/cloudflared/config.yml:ro
+      # Credentials JSON is not in the repo (gitignored secret). Dokploy
+      # supplies it as a file mount at
+      # /etc/cloudflared/creds/REDACTED-TUNNEL-ID.json,
+      # matching credentials-file: in docker/cloudflared.yml.
+    networks:
+      - xcrawl-internal
+    depends_on:
+      - caddy
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-xcrawl}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-xcrawl}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - xcrawl-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-xcrawl}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    networks:
+      - xcrawl-internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  migrate:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+      target: migrate
+    restart: "no"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-xcrawl}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-xcrawl}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - xcrawl-internal
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    restart: unless-stopped
+    expose:
+      - "3001"
+    environment:
+      - NODE_ENV=production
+      - API_PORT=3001
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-xcrawl}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-xcrawl}
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGIN=https://${XCRAWL_DOMAIN}
+      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
+      - STORAGE_PATH=/data/storage
+      - S3_ENDPOINT=${S3_ENDPOINT:-}
+      - S3_BUCKET=${S3_BUCKET:-xcrawl}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:-}
+      - S3_REGION=${S3_REGION:-us-east-1}
+      - SEARXNG_URL=${SEARXNG_URL:-http://searxng:8080}
+      - CRAWLER_MAX_CONCURRENCY=${CRAWLER_MAX_CONCURRENCY:-10}
+      - CRAWLER_DEFAULT_TIMEOUT=${CRAWLER_DEFAULT_TIMEOUT:-30000}
+      - CRAWLER_HEADLESS=${CRAWLER_HEADLESS:-true}
+      - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-100}
+      - RATE_LIMIT_MAX_ANON=${RATE_LIMIT_MAX_ANON:-20}
+      - RATE_LIMIT_WINDOW_SECS=${RATE_LIMIT_WINDOW_SECS:-60}
+      - CACHE_TTL_SECS=${CACHE_TTL_SECS:-3600}
+      - CLEANUP_TTL_HOURS=${CLEANUP_TTL_HOURS:-168}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - storage-data:/data/storage
+    networks:
+      - xcrawl-internal
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    restart: unless-stopped
+    command: node apps/api/dist/main.js
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-xcrawl}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-xcrawl}
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
+      - STORAGE_PATH=/data/storage
+      - S3_ENDPOINT=${S3_ENDPOINT:-}
+      - S3_BUCKET=${S3_BUCKET:-xcrawl}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:-}
+      - S3_REGION=${S3_REGION:-us-east-1}
+      - SEARXNG_URL=${SEARXNG_URL:-http://searxng:8080}
+      - CRAWLER_MAX_CONCURRENCY=${CRAWLER_MAX_CONCURRENCY:-10}
+      - CRAWLER_DEFAULT_TIMEOUT=${CRAWLER_DEFAULT_TIMEOUT:-30000}
+      - CRAWLER_HEADLESS=${CRAWLER_HEADLESS:-true}
+      - CACHE_TTL_SECS=${CACHE_TTL_SECS:-3600}
+      - CLEANUP_TTL_HOURS=${CLEANUP_TTL_HOURS:-168}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - storage-data:/data/storage
+    networks:
+      - xcrawl-internal
+    deploy:
+      replicas: 2
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+    depends_on:
+      - api
+    networks:
+      - xcrawl-internal
+
+  searxng:
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    expose:
+      - "8080"
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080
+      - SEARXNG_SECRET=${SEARXNG_SECRET}
+    volumes:
+      - ./docker/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    networks:
+      - xcrawl-internal
+
+volumes:
+  postgres-data:
+    name: xcrawl-prod-postgres
+  redis-data:
+    name: xcrawl-prod-redis
+  storage-data:
+    name: xcrawl-prod-storage
+  caddy-data:
+    name: xcrawl-prod-caddy-data
+  caddy-config:
+    name: xcrawl-prod-caddy-config
+
+networks:
+  xcrawl-internal:
+    driver: bridge

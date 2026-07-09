@@ -34,6 +34,12 @@ RUN pnpm --filter @xcrawl/api build
 # Download Playwright chromium into the build cache (binary lands in /root/.cache/ms-playwright)
 RUN pnpm --filter @xcrawl/crawler exec playwright install chromium
 
+# One-shot: push the schema and seed the admin user, then exit. Reuses
+# builder as-is — prisma CLI, the schema, and the generated client are
+# already there, so nothing needs re-deriving.
+FROM builder AS migrate
+CMD ["sh", "-c", "pnpm --filter @xcrawl/db run push -- --skip-generate && pnpm --filter @xcrawl/db run seed"]
+
 # Production
 FROM base AS runner
 WORKDIR /app

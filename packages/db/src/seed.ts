@@ -32,24 +32,31 @@ async function main() {
   console.log(`User created: ${adminEmail}`);
 
   // 2. Create API key linked to the user
-  const key = `xc_${crypto.randomBytes(24).toString('hex')}`;
-  await prisma.apiKey.create({
-    data: {
-      name: 'Default API Key',
-      key,
-      hashedKey: await bcrypt.hash(key, 10),
-      active: true,
-      userId: user.id,
-    },
-  });
+  const existingKey = await prisma.apiKey.findFirst({ where: { userId: user.id } });
+  let key: string | undefined;
+  if (!existingKey) {
+    key = `xc_${crypto.randomBytes(24).toString('hex')}`;
+    await prisma.apiKey.create({
+      data: {
+        name: 'Default API Key',
+        key,
+        hashedKey: await bcrypt.hash(key, 10),
+        active: true,
+        userId: user.id,
+      },
+    });
+  }
 
   console.log('\n--- Seed complete ---');
   console.log(`Email:    ${adminEmail}`);
   console.log(`Password: (from your ADMIN_PASSWORD env var)`);
-  console.log(`API Key:  ${key}`);
+  console.log(`API Key:  ${key ?? '(existing key unchanged)'}`);
   console.log('\nLogin at http://localhost:3000/login');
 }
 
 main()
-  .catch(console.error)
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  })
   .finally(() => prisma.$disconnect());
