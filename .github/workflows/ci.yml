@@ -1,6 +1,8 @@
 name: CI
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -61,8 +63,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Non-blocking: current tree has 43 high + 1 critical advisories (e.g. handlebars via
+      # ts-jest, undici via cheerio, ws via socket.io/jsdom) with no patched versions pulled
+      # in yet by our direct deps. Flip to blocking once those are cleared/patched upstream.
+      - name: Audit dependencies (non-blocking)
+        run: pnpm audit --audit-level=high
+        continue-on-error: true
+
       - name: Generate Prisma client
         run: pnpm run db:generate
+
+      # Non-blocking: apps/api's `lint` script (`eslint src`) currently fails because
+      # `eslint` is missing from apps/api/package.json devDependencies (apps/web lint is
+      # clean). Flip to blocking once eslint is added as a devDependency for @xcrawl/api.
+      - name: Lint (non-blocking)
+        run: pnpm run lint
+        continue-on-error: true
 
       - name: Build all packages
         run: pnpm run build
