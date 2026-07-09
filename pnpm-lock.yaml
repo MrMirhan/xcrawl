@@ -92,6 +92,9 @@ importers:
       crypto-random-string:
         specifier: ^5.0.0
         version: 5.0.0
+      helmet:
+        specifier: ^8.2.0
+        version: 8.2.0
       https-proxy-agent:
         specifier: ^8.0.0
         version: 8.0.0
@@ -3920,6 +3923,10 @@ packages:
   header-generator@2.1.81:
     resolution: {integrity: sha512-6+27UuqCHFx4xrTWIgcSF/x2WJ+PuVLxziXfPaVLRXi1lXIbTkXO+ffHJefVrdRT5/XEeWfJHrSIE2m1hAdWxw==}
     engines: {node: '>=16.0.0'}
+
+  helmet@8.2.0:
+    resolution: {integrity: sha512-DRgTIUgnWcJ62KyarxxziuqYxKGnR6Rgg19BlbucN/dpmJbl1XOit6qvoOX0ZT+HhWe5OUVhU/a1zpGyc1xA0Q==}
+    engines: {node: '>=18.0.0'}
 
   help-me@5.0.0:
     resolution: {integrity: sha512-7xgomUX6ADmcYzFik0HzAxh/73YlKR9bmFzf51CZwR+b6YtzU2m0u49hQCqV6SvlqIqsaxovfwdvbnsw3b/zpg==}
@@ -10507,6 +10514,8 @@ snapshots:
       generative-bayesian-network: 2.1.81
       ow: 0.28.2
       tslib: 2.8.1
+
+  helmet@8.2.0: {}
 
   help-me@5.0.0: {}
 
