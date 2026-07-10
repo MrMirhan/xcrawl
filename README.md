@@ -85,7 +85,7 @@ See [docs/mcp.md](docs/mcp.md) for full client setup (Claude Desktop, Cursor, ot
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) 20+
+- [Node.js](https://nodejs.org/) 24+
 - [pnpm](https://pnpm.io/) 10+
 - [Docker](https://www.docker.com/) & Docker Compose
 
