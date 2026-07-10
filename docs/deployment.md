@@ -160,8 +160,8 @@ docker compose logs cloudflared | grep "Registered tunnel"
 curl -I https://your-hostname.example.com
 ```
 
-The config-file flavor (routes defined in `docker/cloudflared.yml` instead
-of the Cloudflare dashboard) is documented inside that file.
+The config-file flavor (routes defined in `docker/cloudflared.yml.template`
+instead of the Cloudflare dashboard) is documented inside that file.
 
 ## 8. Updates
 

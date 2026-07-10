@@ -1,21 +1,28 @@
-# Cloudflare Tunnel config (config-file mode).
+# Cloudflare Tunnel config (config-file mode, template).
 #
-# Used by the `cloudflared` service in docker-compose.tunnel.yml.
-# Cloudflare forwards traffic for the hostname below to Caddy, which routes
-# to api / web inside the Docker network (see docker/Caddyfile.tunnel).
+# Rendered into a real config.yml by the `cloudflared-init` service in
+# docker-compose.dokploy.yml, which substitutes the TUNNEL_ID and
+# XCRAWL_DOMAIN env vars below and writes the result to a shared volume
+# mounted by the `cloudflared` service. Cloudflare forwards traffic for the
+# hostname below to Caddy, which routes to api / web inside the Docker
+# network (see docker/Caddyfile.tunnel).
+#
+# This file is safe to commit — it holds only placeholders, never real
+# tunnel UUIDs or hostnames.
 #
 # Setup (to recreate from scratch):
 #   1. cloudflared tunnel login
 #   2. cloudflared tunnel create xcrawl   (note the tunnel UUID)
 #   3. Place the credentials JSON at docker/.cloudflared/<UUID>.json
 #      (mounted into the container at /etc/cloudflared/creds, read-only).
-#   4. Set both UUID values below (tunnel + credentials-file path).
-#   5. cloudflared tunnel route dns <UUID> xcrawl.example.com
+#   4. Set TUNNEL_ID (the UUID) and XCRAWL_DOMAIN as env vars — see
+#      docker-compose.dokploy.yml.
+#   5. cloudflared tunnel route dns <UUID> <your XCRAWL_DOMAIN value>
 
-tunnel: REDACTED-TUNNEL-ID
-credentials-file: /etc/cloudflared/creds/REDACTED-TUNNEL-ID.json
+tunnel: ${TUNNEL_ID}
+credentials-file: /etc/cloudflared/creds/${TUNNEL_ID}.json
 
 ingress:
-  - hostname: xcrawl.example.com
+  - hostname: ${XCRAWL_DOMAIN}
     service: http://caddy:80
   - service: http_status:404

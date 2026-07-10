@@ -490,4 +490,4 @@ Only the first 8 chars (`xc_` + 5 hex) are stored unhashed as a lookup prefix; `
 
 - `docker-compose.dev.yml` — Dev infrastructure only (postgres, redis, searxng)
 - `docker-compose.yml` — Full production stack (api, worker x2, web, postgres, redis, searxng, garage)
-- `docker-compose.dokploy.yml` — Dokploy deploy stack: builds every service from source (no registry), Cloudflare Tunnel via a `cloudflared-init` sidecar that decodes a `TUNNEL_CRED_B64` env var into a shared credentials volume
+- `docker-compose.dokploy.yml` — Dokploy deploy stack: builds every service from source (no registry), Cloudflare Tunnel via a `cloudflared-init` sidecar that decodes a `TUNNEL_CRED_B64` env var into a shared credentials volume and renders `docker/cloudflared.yml.template` (substituting `TUNNEL_ID` and `XCRAWL_DOMAIN`) into a shared config volume — the tunnel UUID and hostname are never committed

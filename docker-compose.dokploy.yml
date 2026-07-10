@@ -7,6 +7,9 @@ name: xcrawl-prod
 #
 # Cloudflare Tunnel credentials are NOT in the repo — Dokploy supplies them
 # as a file mount on the `cloudflared` service (see its definition below).
+# The tunnel UUID and hostname aren't in the repo either: `TUNNEL_ID` and
+# `XCRAWL_DOMAIN` are Dokploy env vars, substituted into
+# docker/cloudflared.yml.template by `cloudflared-init` at container start.
 # Volumes are namespaced `xcrawl-prod-*`, matching docker-compose.tunnel.yml,
 # so migrating from manual tunnel-compose to Dokploy reuses existing data.
 
@@ -29,23 +32,31 @@ services:
     restart: "no"
     environment:
       TUNNEL_CRED_B64: ${TUNNEL_CRED_B64}
+      TUNNEL_ID: ${TUNNEL_ID}
+      XCRAWL_DOMAIN: ${XCRAWL_DOMAIN}
     volumes:
       - cloudflared-creds:/creds
+      - cloudflared-config:/config
+      - ./docker/cloudflared.yml.template:/template/cloudflared.yml.template:ro
     command:
       - sh
       - -c
-      - 'echo "$$TUNNEL_CRED_B64" | base64 -d > /creds/REDACTED-TUNNEL-ID.json'
+      - |
+        echo "$$TUNNEL_CRED_B64" | base64 -d > "/creds/$$TUNNEL_ID.json"
+        sed -e 's|$${TUNNEL_ID}|'"$$TUNNEL_ID"'|g' -e 's|$${XCRAWL_DOMAIN}|'"$$XCRAWL_DOMAIN"'|g' /template/cloudflared.yml.template > /config/cloudflared.yml
     networks:
       - xcrawl-internal
 
   cloudflared:
     image: cloudflare/cloudflared:2026.5.2
     restart: unless-stopped
-    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config/cloudflared.yml run
     volumes:
-      - ./docker/cloudflared.yml:/etc/cloudflared/config.yml:ro
+      - cloudflared-config:/etc/cloudflared/config:ro
       - cloudflared-creds:/etc/cloudflared/creds:ro
-      # Creds are written by cloudflared-init, which decodes TUNNEL_CRED_B64.
+      # config.yml + creds are both written by cloudflared-init: the config is
+      # docker/cloudflared.yml.template rendered with TUNNEL_ID/XCRAWL_DOMAIN
+      # (sed, no gettext dependency in alpine:3), creds decode TUNNEL_CRED_B64.
     networks:
       - xcrawl-internal
     depends_on:
@@ -226,6 +237,8 @@ volumes:
     name: xcrawl-prod-caddy-config
   cloudflared-creds:
     name: xcrawl-prod-cloudflared-creds
+  cloudflared-config:
+    name: xcrawl-prod-cloudflared-config
 
 networks:
   xcrawl-internal:
