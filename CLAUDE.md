@@ -23,12 +23,20 @@ pnpm run db:push          # Push schema to DB without migration (dev)
 pnpm run db:migrate       # Create + apply SQL migration (production)
 pnpm run db:seed          # Create admin user (needs ADMIN_EMAIL + ADMIN_PASSWORD in .env)
 
-# Single package build/test
+# Lint (turbo lint → eslint per package: apps/api `eslint src`, apps/web `eslint .`)
+pnpm run lint
+
+# Single package build/test/lint
 pnpm --filter @xcrawl/api build      # nest build
 pnpm --filter @xcrawl/web build      # next build
 pnpm --filter @xcrawl/db build       # tsc
+pnpm --filter @xcrawl/api lint       # eslint src (flat config, apps/api/eslint.config.mjs)
 pnpm --filter @xcrawl/api test       # Jest unit tests
 pnpm --filter @xcrawl/api test:e2e   # Jest e2e tests
+
+# Single test (jest, matches by file path substring or -t name pattern)
+pnpm --filter @xcrawl/api test -- url-validator
+pnpm --filter @xcrawl/api test -t "blocks http://127.0.0.1"
 
 # Infrastructure
 docker compose -f docker-compose.dev.yml up -d   # PostgreSQL 17, Redis 7, SearXNG
@@ -67,6 +75,12 @@ packages/* have zero workspace dependencies
 
 **Auth:** Dual-strategy via `ApiKeyGuard`. JWT Bearer (from `/user/signin`) OR `X-API-Key` header. Guard sets `req.userId` and optionally `req.apiKeyId`. `UserAuthModule` is `@Global()`.
 
+**SSRF protection:** `assertPublicUrl()` (`apps/api/src/common/utils/url-validator.ts`) rejects private/link-local IPs and blocked hostnames (cloud metadata endpoints). It is called before enqueue/fetch everywhere a user-supplied URL enters the system — `scrape`, `crawl`, `map`, `batch`, `extract`, `schedule`, `webhook`, and `user-auth` services all call it. Any new feature that accepts a user-supplied URL must call it too.
+
+**Rate limiting:** `ApiKeyRateLimitGuard` (Redis sliding window; identity precedence `userId` > `apiKeyId` > `X-API-Key` header > client IP) is wired on nearly every protected controller via `@UseGuards(ApiKeyGuard, ApiKeyRateLimitGuard)`. Guard order matters — `ApiKeyGuard` must run first to populate `req.userId`/`req.apiKeyId`, which the rate limiter reads to key the bucket and pick the authenticated vs. anonymous ceiling. New protected controllers should follow the same two-guard order.
+
+**Reverse proxy:** `main.ts` sets `app.set('trust proxy', 2)` — the API is only ever reached through a 2-hop `cloudflared → caddy` chain, so `req.ip` must skip both hops to reflect the real client IP (this feeds the rate-limiter's IP-based identity). `helmet({ contentSecurityPolicy: false })` is applied globally; CSP stays off because the default policy blocks Swagger UI's inline scripts at `/api/docs`, other helmet headers (HSTS, X-Content-Type-Options, etc.) stay on.
+
 **Job queue:** BullMQ backed by Redis. Queues defined as constants in `@xcrawl/shared`: `scrape`, `crawl`, `batch-scrape`, `extract`, `webhook-delivery`. Socket.IO gateway emits real-time crawl progress.
 
 **MCP transport:** `mcp` module exposes an MCP server (`@modelcontextprotocol/sdk`, Streamable HTTP transport) at `/mcp` — excluded from the `/api/v1` prefix and from Swagger (`@ApiExcludeController`), guarded by the same `ApiKeyGuard` + `ApiKeyRateLimitGuard`. Seven tools registered in `apps/api/src/modules/mcp/tools/`: `scrape`, `crawl`, `map`, `search`, `extract`, `getJob`, `listJobs`. Sessions are held in memory per API process (`McpService`) and swept after 30 min idle — they do not survive a restart.
@@ -102,8 +116,12 @@ App Router with `'use client'` pages. Centralized API client in `lib/api-client.
 ### TypeScript Config
 
 Base (`tsconfig.base.json`): `strict: true`, `ES2022`, `NodeNext`, composite project references.
-API overrides: `module: commonjs` (NestJS requirement).
+API (`apps/api/tsconfig.json`) extends base: `module: commonjs` (NestJS requirement), `strictPropertyInitialization: false` kept off deliberately (DTOs are populated by the `ValidationPipe`, not constructors — everything else in `strict` stays on).
 DB overrides: `module: commonjs` (Prisma v7 generated TS must compile to CJS).
+
+## CI
+
+`.github/workflows/ci.yml` runs on push to `main` and on PRs against `main`, against real Postgres 17 + Redis 7 service containers. Blocking gates, in order: `pnpm audit --audit-level=high` (dependency vulnerabilities, high/critical only — moderate/low aren't gated), `pnpm run lint`, `pnpm run build`, `pnpm --filter @xcrawl/api test`, `pnpm --filter @xcrawl/api test:e2e`. The root `package.json`'s `pnpm.overrides` pins several transitive deps for vuln patches (`undici`, `ws`, `tar`, `multer`, the `hono` stack, `picomatch`, `handlebars`, etc.) — check it before bumping a dependency that trips the audit gate.
 
 ---
 
@@ -446,6 +464,8 @@ Keys prefixed with `xc_` followed by 48 hex chars:
 const key = `xc_${crypto.randomBytes(24).toString('hex')}`;
 ```
 
+Only the first 8 chars (`xc_` + 5 hex) are stored unhashed as a lookup prefix; `createApiKey` (`auth.service.ts`) retries key generation up to 5 times on a Prisma `P2002` (prefix collision) before throwing `ConflictException`.
+
 ## Key Files
 
 | File | Purpose |
@@ -470,3 +490,4 @@ const key = `xc_${crypto.randomBytes(24).toString('hex')}`;
 
 - `docker-compose.dev.yml` — Dev infrastructure only (postgres, redis, searxng)
 - `docker-compose.yml` — Full production stack (api, worker x2, web, postgres, redis, searxng, garage)
+- `docker-compose.dokploy.yml` — Dokploy deploy stack: builds every service from source (no registry), Cloudflare Tunnel via a `cloudflared-init` sidecar that decodes a `TUNNEL_CRED_B64` env var into a shared credentials volume
