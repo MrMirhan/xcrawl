@@ -3,6 +3,8 @@ import { registerAs } from '@nestjs/config';
 export default registerAs('app', () => ({
   port: parseInt(process.env.API_PORT || '3001', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
+  disableRegistration: process.env.DISABLE_REGISTRATION === 'true',
+  registrationRequireApproval: process.env.REGISTRATION_REQUIRE_APPROVAL === 'true',
 }));
 
 export const redisConfig = registerAs('redis', () => ({

@@ -1,5 +1,12 @@
-import { Injectable, ConflictException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { SignupDto, SigninDto, UpdateSettingsDto } from './dto/auth.dto';
@@ -9,25 +16,41 @@ export class UserAuthService {
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
+    private config: ConfigService,
   ) {}
 
   async signup(dto: SignupDto) {
+    if (this.config.get('app.disableRegistration', false)) {
+      throw new ForbiddenException('Registration is currently disabled');
+    }
+
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) throw new ConflictException('Email already registered');
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
+    const role = this.config.get('app.registrationRequireApproval', false) ? 'PENDING' : 'USER';
     const user = await this.prisma.user.create({
       data: {
         email: dto.email,
         passwordHash,
         name: dto.name,
+        role,
         settings: { create: {} },
       },
     });
 
+    if (user.role === 'PENDING') {
+      return {
+        success: true,
+        pending: true,
+        message: 'Signup successful. Your account is pending admin approval.',
+      };
+    }
+
     const token = this.jwt.sign({ sub: user.id, email: user.email });
     return {
-      user: { id: user.id, email: user.email, name: user.name },
+      success: true,
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, isActive: user.isActive },
       token,
     };
   }
@@ -39,9 +62,13 @@ export class UserAuthService {
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) throw new UnauthorizedException('Invalid credentials');
 
+    if (user.role === 'PENDING') throw new ForbiddenException('Account pending admin approval');
+    if (!user.isActive) throw new ForbiddenException('Account disabled');
+
     const token = this.jwt.sign({ sub: user.id, email: user.email });
     return {
-      user: { id: user.id, email: user.email, name: user.name },
+      success: true,
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, isActive: user.isActive },
       token,
     };
   }

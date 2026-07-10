@@ -30,6 +30,7 @@ import type {
   UpdateUserSettingsRequest,
   TestLlmRequest,
   TestLlmResponse,
+  UserRole,
   JobListItem,
   JobDetails,
   JobResultRecord,
@@ -122,6 +123,15 @@ export interface ExtractStatusResponse {
 }
 
 export interface ExtractCancelResponse {
+  success: boolean;
+}
+
+export interface AdminUserMutationResponse {
+  success: boolean;
+  data: UserProfile;
+}
+
+export interface AdminUserRejectResponse {
   success: boolean;
 }
 
@@ -290,6 +300,31 @@ export const apiClient = {
     request<UserSettings>('/user/settings', { method: 'PATCH', body: dto }),
   testLLM: (dto: TestLlmRequest): Promise<TestLlmResponse> =>
     request<TestLlmResponse>('/user/test-llm', { method: 'POST', body: dto }),
+
+  // Admin — user management
+  listUsers: (
+    apiKey: string,
+    query: { role?: UserRole; page?: number; limit?: number } = {},
+  ): Promise<ScrapeListResponse<UserProfile>> => {
+    const params = new URLSearchParams();
+    if (query.role) params.set('role', query.role);
+    if (query.page !== undefined) params.set('page', String(query.page));
+    if (query.limit !== undefined) params.set('limit', String(query.limit));
+    const qs = params.toString();
+    return request<ScrapeListResponse<UserProfile>>(`/users${qs ? `?${qs}` : ''}`, { apiKey });
+  },
+  approveUser: (id: string, apiKey: string, role?: UserRole): Promise<AdminUserMutationResponse> =>
+    request<AdminUserMutationResponse>(`/users/${id}/approve`, {
+      method: 'PATCH',
+      body: role ? { role } : {},
+      apiKey,
+    }),
+  rejectUser: (id: string, apiKey: string): Promise<AdminUserRejectResponse> =>
+    request<AdminUserRejectResponse>(`/users/${id}/reject`, { method: 'DELETE', apiKey }),
+  updateUserRole: (id: string, role: UserRole, apiKey: string): Promise<AdminUserMutationResponse> =>
+    request<AdminUserMutationResponse>(`/users/${id}/role`, { method: 'PATCH', body: { role }, apiKey }),
+  updateUserStatus: (id: string, isActive: boolean, apiKey: string): Promise<AdminUserMutationResponse> =>
+    request<AdminUserMutationResponse>(`/users/${id}/status`, { method: 'PATCH', body: { isActive }, apiKey }),
 
   // Storage
   getScreenshotUrl: (jobId: string): string =>

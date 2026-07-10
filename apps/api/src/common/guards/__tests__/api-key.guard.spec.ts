@@ -1,4 +1,4 @@
-import { UnauthorizedException, ExecutionContext } from '@nestjs/common';
+import { UnauthorizedException, ForbiddenException, ExecutionContext } from '@nestjs/common';
 import { ApiKeyGuard } from '../api-key.guard';
 
 // Mock bcrypt before any imports resolve it
@@ -15,6 +15,9 @@ const mockPrismaService = {
   apiKey: {
     findMany: jest.fn(),
     update: jest.fn(),
+  },
+  user: {
+    findUnique: jest.fn(),
   },
 };
 
@@ -40,6 +43,8 @@ describe('ApiKeyGuard', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Default: the resolved user is an active, approved account so status enforcement passes.
+    mockPrismaService.user.findUnique.mockResolvedValue({ role: 'USER', isActive: true });
     guard = new ApiKeyGuard(
       mockPrismaService as any,
       mockJwtService as any,
@@ -290,6 +295,111 @@ describe('ApiKeyGuard', () => {
       expect(mockPrismaService.apiKey.findMany).toHaveBeenCalled();
       expect(mockJwtService.verify).not.toHaveBeenCalled();
       expect(request.apiKeyId).toBe('key-id-1');
+    });
+  });
+
+  describe('account status enforcement', () => {
+    const rawKey = 'xc_live12345678abcdefghijklmnop';
+    const candidateKey = {
+      id: 'key-id-1',
+      key: rawKey.slice(0, 8),
+      hashedKey: 'hashed-value',
+      active: true,
+      userId: 'user-id-1',
+    };
+    const token = 'valid.jwt.token';
+
+    const apiKeyContext = () => {
+      mockPrismaService.apiKey.findMany.mockResolvedValue([candidateKey]);
+      mockBcryptCompare.mockResolvedValue(true as never);
+      mockPrismaService.apiKey.update.mockResolvedValue({});
+      const request: Record<string, unknown> = { headers: { 'x-api-key': rawKey } };
+      const ctx = {
+        switchToHttp: () => ({ getRequest: () => request }),
+      } as unknown as ExecutionContext;
+      return { request, ctx };
+    };
+
+    const jwtContext = () => {
+      mockConfigService.getOrThrow.mockReturnValue('test-secret');
+      mockJwtService.verify.mockReturnValue({ sub: 'user-id-1', email: 'user@example.com' });
+      const request: Record<string, unknown> = { headers: { authorization: `Bearer ${token}` } };
+      const ctx = {
+        switchToHttp: () => ({ getRequest: () => request }),
+      } as unknown as ExecutionContext;
+      return { request, ctx };
+    };
+
+    it('looks up the resolved user by id and selects role/isActive', async () => {
+      const { ctx } = apiKeyContext();
+      await guard.canActivate(ctx);
+
+      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'user-id-1' },
+          select: { role: true, isActive: true },
+        }),
+      );
+    });
+
+    it('stashes request.userRole after a successful status check (API key branch)', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({ role: 'ADMIN', isActive: true });
+      const { request, ctx } = apiKeyContext();
+
+      const result = await guard.canActivate(ctx);
+
+      expect(result).toBe(true);
+      expect(request.userRole).toBe('ADMIN');
+    });
+
+    it('stashes request.userRole after a successful status check (JWT branch)', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({ role: 'USER', isActive: true });
+      const { request, ctx } = jwtContext();
+
+      const result = await guard.canActivate(ctx);
+
+      expect(result).toBe(true);
+      expect(request.userRole).toBe('USER');
+    });
+
+    it('rejects a disabled account (isActive false) holding a valid JWT', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({ role: 'USER', isActive: false });
+      const { ctx } = jwtContext();
+
+      await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+      await expect(guard.canActivate(ctx)).rejects.toThrow('Account disabled');
+    });
+
+    it('rejects a PENDING account holding a valid JWT', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({ role: 'PENDING', isActive: true });
+      const { ctx } = jwtContext();
+
+      await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+      await expect(guard.canActivate(ctx)).rejects.toThrow('pending admin approval');
+    });
+
+    it('rejects when the resolved user no longer exists', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      const { ctx } = jwtContext();
+
+      await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+      await expect(guard.canActivate(ctx)).rejects.toThrow('User not found');
+    });
+
+    it('skips the status check when no userId is resolved (unlinked API key)', async () => {
+      mockPrismaService.apiKey.findMany.mockResolvedValue([{ ...candidateKey, userId: null }]);
+      mockBcryptCompare.mockResolvedValue(true as never);
+      mockPrismaService.apiKey.update.mockResolvedValue({});
+      const request: Record<string, unknown> = { headers: { 'x-api-key': rawKey } };
+      const ctx = {
+        switchToHttp: () => ({ getRequest: () => request }),
+      } as unknown as ExecutionContext;
+
+      const result = await guard.canActivate(ctx);
+
+      expect(result).toBe(true);
+      expect(mockPrismaService.user.findUnique).not.toHaveBeenCalled();
+      expect(request.userRole).toBeUndefined();
     });
   });
 });

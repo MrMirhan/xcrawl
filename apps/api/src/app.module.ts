@@ -27,6 +27,7 @@ import { JobModule } from './modules/job/job.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { ProxyModule } from './modules/proxy/proxy.module';
 import { UserAuthModule } from './modules/user-auth/user-auth.module';
+import { UsersModule } from './modules/users/users.module';
 import { SearchModule } from './modules/search/search.module';
 import { ScheduleModule as CrawlScheduleModule } from './modules/schedule/schedule.module';
 import { CleanupModule } from './modules/cleanup/cleanup.module';
@@ -108,6 +109,7 @@ import { MetricsMiddleware } from './common/middleware/metrics.middleware';
     // Feature modules
     UserAuthModule,
     AuthModule,
+    UsersModule,
     HealthModule,
     ScrapeModule,
     CrawlModule,

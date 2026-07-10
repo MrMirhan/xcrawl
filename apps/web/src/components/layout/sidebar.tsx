@@ -17,11 +17,13 @@ import {
   Bug,
   CalendarClock,
   LogOut,
+  Users,
 } from 'lucide-react';
+import { UserRole } from '@xcrawl/shared';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/components/theme-provider';
 import { Button } from '@/components/ui/button';
-import { getUser, clearAuth } from '@/lib/auth';
+import { getUser, clearAuth, type AuthUser } from '@/lib/auth';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -34,10 +36,13 @@ const navigation = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
+const adminNavItem = { name: 'Users', href: '/admin/users', icon: Users };
+
 export function Sidebar() {
   const pathname = usePathname();
   const { theme, setTheme, resolvedTheme } = useTheme();
-  const [user] = useState<{ email: string; name?: string } | null>(() => getUser());
+  const [user] = useState<AuthUser | null>(() => getUser());
+  const navItems = user?.role === UserRole.ADMIN ? [...navigation, adminNavItem] : navigation;
 
   const handleLogout = () => {
     clearAuth();
@@ -66,7 +71,7 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 space-y-0.5">
-        {navigation.map((item) => {
+        {navItems.map((item) => {
           const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
           const Icon = item.icon;
           return (

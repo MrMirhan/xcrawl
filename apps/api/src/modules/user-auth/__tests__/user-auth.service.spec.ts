@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { UserAuthService } from '../user-auth.service';
 
 jest.mock('bcrypt', () => ({
@@ -32,23 +32,76 @@ const mockJwtService = {
   sign: jest.fn(),
 };
 
+const mockConfigService = {
+  get: jest.fn(),
+};
+
 describe('UserAuthService', () => {
   let service: UserAuthService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new UserAuthService(mockPrismaService as any, mockJwtService as any);
+    // Default: registration enabled, no approval required (return the caller's fallback).
+    mockConfigService.get.mockImplementation((_key: string, def?: unknown) => def);
+    service = new UserAuthService(mockPrismaService as any, mockJwtService as any, mockConfigService as any);
   });
 
   describe('signup', () => {
     const dto = { email: 'user@example.com', password: 'secret123', name: 'Test User' };
-    const createdUser = { id: 'user-1', email: dto.email, name: dto.name };
+    const createdUser = { id: 'user-1', email: dto.email, name: dto.name, role: 'USER', isActive: true };
 
     beforeEach(() => {
       mockPrismaService.user.findUnique.mockResolvedValue(null);
       mockBcryptHash.mockResolvedValue('hashed-password' as never);
       mockPrismaService.user.create.mockResolvedValue(createdUser);
       mockJwtService.sign.mockReturnValue('jwt-token');
+    });
+
+    it('throws ForbiddenException when registration is disabled', async () => {
+      mockConfigService.get.mockImplementation((key: string, def?: unknown) =>
+        key === 'app.disableRegistration' ? true : def,
+      );
+
+      await expect(service.signup(dto)).rejects.toThrow(ForbiddenException);
+      await expect(service.signup(dto)).rejects.toThrow('Registration is currently disabled');
+      expect(mockPrismaService.user.create).not.toHaveBeenCalled();
+    });
+
+    it('creates a PENDING user and returns pending status without a token when approval is required', async () => {
+      mockConfigService.get.mockImplementation((key: string, def?: unknown) =>
+        key === 'app.registrationRequireApproval' ? true : def,
+      );
+      mockPrismaService.user.create.mockResolvedValue({
+        id: 'user-1',
+        email: dto.email,
+        name: dto.name,
+        role: 'PENDING',
+        isActive: true,
+      });
+
+      const result = await service.signup(dto);
+
+      expect(mockPrismaService.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ role: 'PENDING' }) }),
+      );
+      expect(result).toMatchObject({ success: true, pending: true });
+      expect(result).not.toHaveProperty('token');
+      expect(result).not.toHaveProperty('user');
+      expect(mockJwtService.sign).not.toHaveBeenCalled();
+    });
+
+    it('creates a USER-role user and issues a token when approval is not required', async () => {
+      const result = await service.signup(dto);
+
+      expect(mockPrismaService.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ role: 'USER' }) }),
+      );
+      expect(result).toMatchObject({
+        success: true,
+        user: { id: createdUser.id, email: createdUser.email, role: 'USER', isActive: true },
+        token: 'jwt-token',
+      });
+      expect(mockJwtService.sign).toHaveBeenCalledWith({ sub: createdUser.id, email: createdUser.email });
     });
 
     it('throws ConflictException when email is already registered', async () => {
@@ -124,12 +177,42 @@ describe('UserAuthService', () => {
       email: dto.email,
       name: 'Test User',
       passwordHash: 'hashed-password',
+      role: 'USER',
+      isActive: true,
     };
 
     beforeEach(() => {
       mockPrismaService.user.findUnique.mockResolvedValue(existingUser);
       mockBcryptCompare.mockResolvedValue(true as never);
       mockJwtService.sign.mockReturnValue('jwt-token');
+    });
+
+    it('throws ForbiddenException for a PENDING account', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({ ...existingUser, role: 'PENDING' });
+
+      await expect(service.signin(dto)).rejects.toThrow(ForbiddenException);
+      await expect(service.signin(dto)).rejects.toThrow('Account pending admin approval');
+      expect(mockJwtService.sign).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException for a deactivated account', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({ ...existingUser, isActive: false });
+
+      await expect(service.signin(dto)).rejects.toThrow(ForbiddenException);
+      await expect(service.signin(dto)).rejects.toThrow('Account disabled');
+      expect(mockJwtService.sign).not.toHaveBeenCalled();
+    });
+
+    it('succeeds for an active ADMIN account', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({ ...existingUser, role: 'ADMIN' });
+
+      const result = await service.signin(dto);
+
+      expect(result).toMatchObject({
+        success: true,
+        user: { id: existingUser.id, email: existingUser.email, role: 'ADMIN', isActive: true },
+        token: 'jwt-token',
+      });
     });
 
     it('throws UnauthorizedException when user is not found', async () => {

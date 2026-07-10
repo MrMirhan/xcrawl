@@ -1,12 +1,15 @@
+import type { AuthResponse, UserRole } from '@xcrawl/shared';
 import { API_BASE, STORAGE_KEYS } from './config';
 
 export interface AuthUser {
   id: string;
   email: string;
   name?: string;
+  role: UserRole;
+  isActive: boolean;
 }
 
-export async function signup(email: string, password: string, name?: string): Promise<{ user: AuthUser; token: string }> {
+export async function signup(email: string, password: string, name?: string): Promise<AuthResponse> {
   const res = await fetch(`${API_BASE}/api/v1/user/signup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
