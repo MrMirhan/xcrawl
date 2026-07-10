@@ -37,6 +37,8 @@ import type {
   JobStats,
   CancelAllJobsResponse,
   Pagination,
+  Plan,
+  UsageSummary,
 } from '@xcrawl/shared';
 import { API_BASE, STORAGE_KEYS } from './config';
 import { clearAuth } from './auth';
@@ -133,6 +135,44 @@ export interface AdminUserMutationResponse {
 
 export interface AdminUserRejectResponse {
   success: boolean;
+}
+
+export interface PlanListResponse {
+  data: Plan[];
+}
+
+export interface PlanMutationResponse {
+  success: boolean;
+  data: Plan;
+}
+
+export interface CreatePlanRequest {
+  name: string;
+  description?: string;
+  dailyPageLimit?: number | null;
+  weeklyPageLimit?: number | null;
+  dailySearchLimit?: number | null;
+  weeklySearchLimit?: number | null;
+  dailyExtractLimit?: number | null;
+  weeklyExtractLimit?: number | null;
+  canUseOwnLlm: boolean;
+  isDefault?: boolean;
+}
+
+export type UpdatePlanRequest = Partial<CreatePlanRequest>;
+
+export interface LimitOverrides {
+  dailyPageLimit?: number | null;
+  weeklyPageLimit?: number | null;
+  dailySearchLimit?: number | null;
+  weeklySearchLimit?: number | null;
+  dailyExtractLimit?: number | null;
+  weeklyExtractLimit?: number | null;
+}
+
+export interface UpdateUserLimitsRequest {
+  limitOverrides?: LimitOverrides;
+  canUseOwnLlmOverride?: boolean | null;
 }
 
 function readStoredToken(): string | null {
@@ -325,6 +365,24 @@ export const apiClient = {
     request<AdminUserMutationResponse>(`/users/${id}/role`, { method: 'PATCH', body: { role }, apiKey }),
   updateUserStatus: (id: string, isActive: boolean, apiKey: string): Promise<AdminUserMutationResponse> =>
     request<AdminUserMutationResponse>(`/users/${id}/status`, { method: 'PATCH', body: { isActive }, apiKey }),
+
+  // Admin — plan management
+  listPlans: (apiKey: string): Promise<PlanListResponse> =>
+    request<PlanListResponse>('/plans', { apiKey }),
+  createPlan: (apiKey: string, dto: CreatePlanRequest): Promise<PlanMutationResponse> =>
+    request<PlanMutationResponse>('/plans', { body: dto, apiKey }),
+  updatePlan: (apiKey: string, id: string, dto: UpdatePlanRequest): Promise<PlanMutationResponse> =>
+    request<PlanMutationResponse>(`/plans/${id}`, { method: 'PATCH', body: dto, apiKey }),
+  deletePlan: (apiKey: string, id: string): Promise<{ success: boolean }> =>
+    request<{ success: boolean }>(`/plans/${id}`, { method: 'DELETE', apiKey }),
+  updateUserPlan: (apiKey: string, id: string, planId: string): Promise<AdminUserMutationResponse> =>
+    request<AdminUserMutationResponse>(`/users/${id}/plan`, { method: 'PATCH', body: { planId }, apiKey }),
+  updateUserLimits: (apiKey: string, id: string, dto: UpdateUserLimitsRequest): Promise<AdminUserMutationResponse> =>
+    request<AdminUserMutationResponse>(`/users/${id}/limits`, { method: 'PATCH', body: dto, apiKey }),
+
+  // User usage
+  getUserUsage: (apiKey: string): Promise<UsageSummary> =>
+    request<UsageSummary>('/user/usage', { apiKey }),
 
   // Storage
   getScreenshotUrl: (jobId: string): string =>

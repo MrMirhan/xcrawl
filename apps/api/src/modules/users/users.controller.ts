@@ -1,4 +1,14 @@
-import { Controller, Get, Patch, Delete, Param, Body, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiSecurity } from '@nestjs/swagger';
 import { UserRole } from '@xcrawl/db';
 import { UsersService } from './users.service';
@@ -11,6 +21,8 @@ import {
   ListUsersQueryDto,
   UpdateUserRoleDto,
   UpdateUserStatusDto,
+  UpdateUserPlanDto,
+  UpdateUserLimitsDto,
 } from './dto/users-admin.dto';
 
 @ApiTags('Users')
@@ -57,5 +69,15 @@ export class UsersController {
     @Req() req: { userId?: string },
   ) {
     return this.usersService.updateStatus(id, dto.isActive, req.userId!);
+  }
+
+  @Patch(':id/plan')
+  updatePlan(@Param('id') id: string, @Body() dto: UpdateUserPlanDto) {
+    return this.usersService.updatePlan(id, dto.planId);
+  }
+
+  @Patch(':id/limits')
+  updateLimits(@Param('id') id: string, @Body() dto: UpdateUserLimitsDto) {
+    return this.usersService.updateLimits(id, dto);
   }
 }

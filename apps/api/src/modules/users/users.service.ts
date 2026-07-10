@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { UserRole } from '@xcrawl/db';
 import { PrismaService } from '../prisma/prisma.service';
-import { ListUsersQueryDto } from './dto/users-admin.dto';
+import { ListUsersQueryDto, UpdateUserLimitsDto } from './dto/users-admin.dto';
 
 const USER_SELECT = {
   id: true,
@@ -18,6 +18,7 @@ const USER_SELECT = {
   isActive: true,
   createdAt: true,
   updatedAt: true,
+  plan: { select: { id: true, name: true } },
 } as const;
 
 @Injectable()
@@ -148,6 +149,50 @@ export class UsersService {
       select: USER_SELECT,
     });
     this.logger.log(`Updated status of user ${id} to isActive=${isActive}`);
+    return updated;
+  }
+
+  async updatePlan(id: string, planId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id }, select: { id: true } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const plan = await this.prisma.plan.findUnique({ where: { id: planId } });
+    if (!plan) throw new NotFoundException('Plan not found');
+
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: { planId },
+      select: USER_SELECT,
+    });
+    this.logger.log(`Assigned plan ${planId} to user ${id}`);
+    return updated;
+  }
+
+  async updateLimits(id: string, dto: UpdateUserLimitsDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { limitOverrides: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const data: Record<string, unknown> = {};
+
+    if (dto.limitOverrides) {
+      const existing = (user.limitOverrides as Record<string, number | null>) ?? {};
+      const merged = { ...existing };
+      for (const [key, value] of Object.entries(dto.limitOverrides)) {
+        if (value === undefined) continue;
+        merged[key] = value as number | null;
+      }
+      data.limitOverrides = merged;
+    }
+
+    if (dto.canUseOwnLlmOverride !== undefined) {
+      data.canUseOwnLlmOverride = dto.canUseOwnLlmOverride;
+    }
+
+    const updated = await this.prisma.user.update({ where: { id }, data, select: USER_SELECT });
+    this.logger.log(`Updated limits for user ${id}`);
     return updated;
   }
 }

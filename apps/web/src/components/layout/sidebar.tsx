@@ -18,6 +18,7 @@ import {
   CalendarClock,
   LogOut,
   Users,
+  ClipboardList,
 } from 'lucide-react';
 import { UserRole } from '@xcrawl/shared';
 import { cn } from '@/lib/utils';
@@ -36,13 +37,16 @@ const navigation = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
-const adminNavItem = { name: 'Users', href: '/admin/users', icon: Users };
+const adminNavItems = [
+  { name: 'Users', href: '/admin/users', icon: Users },
+  { name: 'Plans', href: '/admin/plans', icon: ClipboardList },
+];
 
 export function Sidebar() {
   const pathname = usePathname();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [user] = useState<AuthUser | null>(() => getUser());
-  const navItems = user?.role === UserRole.ADMIN ? [...navigation, adminNavItem] : navigation;
+  const navItems = user?.role === UserRole.ADMIN ? [...navigation, ...adminNavItems] : navigation;
 
   const handleLogout = () => {
     clearAuth();

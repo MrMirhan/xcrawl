@@ -49,6 +49,7 @@ export interface UserProfile {
   role: UserRole;
   isActive: boolean;
   createdAt: string;
+  plan?: { id: string; name: string } | null;
   settings?: UserSettings | null;
   _count?: {
     apiKeys: number;

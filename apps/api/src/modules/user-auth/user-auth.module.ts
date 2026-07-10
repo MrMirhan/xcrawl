@@ -5,11 +5,13 @@ import { ConfigService } from '@nestjs/config';
 import { UserAuthController } from './user-auth.controller';
 import { UserAuthService } from './user-auth.service';
 import { JwtStrategy } from './jwt.strategy';
+import { UsageModule } from '../usage/usage.module';
 
 @Global()
 @Module({
   imports: [
     PassportModule,
+    UsageModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {

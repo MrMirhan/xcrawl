@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Check, ExternalLink, Key, BookOpen, Sparkles, Search, Loader2, Wifi, CheckCircle, XCircle } from 'lucide-react';
+import { Check, ExternalLink, Key, BookOpen, Sparkles, Search, Loader2, Wifi, CheckCircle, XCircle, BarChart3 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,9 @@ import { Select } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
 import { getToken } from '@/lib/auth';
 import { API_BASE } from '@/lib/config';
+import { apiClient } from '@/lib/api-client';
+import { UsagePool } from '@xcrawl/shared';
+import type { UsageSummary } from '@xcrawl/shared';
 
 interface UserSettings {
   proxyUrls: string[];
@@ -40,6 +43,8 @@ export default function SettingsPage() {
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [llmTest, setLlmTest] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
   const [llmTestMsg, setLlmTestMsg] = useState('');
+  const [usage, setUsage] = useState<UsageSummary | null>(null);
+  const [usageLoading, setUsageLoading] = useState(false);
 
   const loadSettings = useCallback(async (t: string) => {
     try {
@@ -67,6 +72,22 @@ export default function SettingsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (token) loadSettings(token);
   }, [token, loadSettings]);
+
+  const loadUsage = useCallback(async (t: string) => {
+    setUsageLoading(true);
+    try {
+      const res = await apiClient.getUserUsage(t);
+      setUsage(res);
+    } catch {
+      setUsage(null);
+    }
+    setUsageLoading(false);
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (token) loadUsage(token);
+  }, [token, loadUsage]);
 
   const handleSaveApiKey = () => {
     localStorage.setItem('xcrawl-api-key', apiKey);
@@ -167,6 +188,45 @@ export default function SettingsPage() {
         {/* Per-user settings (only shown when logged in) */}
         {token && (
           <>
+            {/* Usage */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-primary" />
+                  <CardTitle className="text-base">Usage</CardTitle>
+                </div>
+                <CardDescription>Current plan and resource consumption.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {usageLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : usage ? (
+                  <>
+                    <div>
+                      <span className="text-xs font-medium text-muted-foreground">Plan: </span>
+                      <span className="text-sm font-medium">{usage.plan?.name ?? 'No plan assigned'}</span>
+                    </div>
+                    {([UsagePool.PAGES, UsagePool.SEARCH, UsagePool.EXTRACT] as UsagePool[]).map((pool) => {
+                      const p = usage.pools[pool];
+                      const fmtLine = (used: number, limit: number | null, period: string) =>
+                        limit === null
+                          ? `${used.toLocaleString()} used ${period} (unlimited)`
+                          : `${used.toLocaleString()} / ${limit.toLocaleString()} used ${period}`;
+                      return (
+                        <div key={pool}>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{pool}</p>
+                          <p className="text-sm">{fmtLine(p.dailyUsed, p.dailyLimit, 'today')}</p>
+                          <p className="text-sm">{fmtLine(p.weeklyUsed, p.weeklyLimit, 'this week')}</p>
+                        </div>
+                      );
+                    })}
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Failed to load usage data.</p>
+                )}
+              </CardContent>
+            </Card>
+
             {/* LLM Configuration */}
             <Card>
               <CardHeader>

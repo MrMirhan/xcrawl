@@ -28,6 +28,8 @@ import { WebhookModule } from './modules/webhook/webhook.module';
 import { ProxyModule } from './modules/proxy/proxy.module';
 import { UserAuthModule } from './modules/user-auth/user-auth.module';
 import { UsersModule } from './modules/users/users.module';
+import { PlansModule } from './modules/plans/plans.module';
+import { UsageModule } from './modules/usage/usage.module';
 import { SearchModule } from './modules/search/search.module';
 import { ScheduleModule as CrawlScheduleModule } from './modules/schedule/schedule.module';
 import { CleanupModule } from './modules/cleanup/cleanup.module';
@@ -110,6 +112,8 @@ import { MetricsMiddleware } from './common/middleware/metrics.middleware';
     UserAuthModule,
     AuthModule,
     UsersModule,
+    PlansModule,
+    UsageModule,
     HealthModule,
     ScrapeModule,
     CrawlModule,
