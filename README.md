@@ -58,6 +58,7 @@
 ### Multi-User
 
 - **Auth** — Email/password signup with JWT
+- **Admin approval** — Gate new signups behind admin review (`REGISTRATION_REQUIRE_APPROVAL`), or disable signup entirely (`DISABLE_REGISTRATION`); admins manage roles and enable/disable accounts from `/admin/users`
 - **Per-user LLM** — Bring your own API key (OpenAI, Anthropic, Ollama, OpenRouter)
 - **Per-user proxies** — Personal proxy list with batch import and liveness testing
 - **Per-user search** — Custom SearXNG instance URL
