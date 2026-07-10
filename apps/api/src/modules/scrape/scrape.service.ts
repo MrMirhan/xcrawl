@@ -36,6 +36,9 @@ export class ScrapeService implements OnModuleInit, OnModuleDestroy {
   async scrape(dto: ScrapeRequestDto, apiKeyId?: string, userId?: string) {
     await assertPublicUrl(dto.url);
     await this.usageService.assertWithinQuota(userId, UsagePool.PAGES);
+    if (dto.extractSchema || dto.extractPrompt) {
+      await this.usageService.assertWithinQuota(userId, UsagePool.EXTRACT);
+    }
 
     const formats = dto.formats ?? ['markdown'];
     const onlyMainContent = dto.onlyMainContent ?? true;

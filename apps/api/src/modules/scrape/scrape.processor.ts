@@ -84,6 +84,10 @@ export class ScrapeProcessor extends WorkerHost {
         await this.prisma.usageEvent.create({ data: { userId: jobUserId, pool: UsagePool.PAGES, amount: 1 } });
       }
 
+      if (extractedData !== null && extractedData !== undefined && jobUserId) {
+        await this.prisma.usageEvent.create({ data: { userId: jobUserId, pool: UsagePool.EXTRACT, amount: 1 } });
+      }
+
       return { ...result, extractedData };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
