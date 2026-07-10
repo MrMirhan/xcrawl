@@ -63,6 +63,9 @@ function buildPrismaMock() {
       findMany: jest.fn().mockResolvedValue([]), // empty → JWT path taken by ApiKeyGuard
       update: jest.fn(),
     },
+    user: {
+      findUnique: jest.fn().mockResolvedValue({ role: 'USER', isActive: true }), // ApiKeyGuard.enforceUserStatus
+    },
     $connect: jest.fn(),
     $disconnect: jest.fn(),
   };

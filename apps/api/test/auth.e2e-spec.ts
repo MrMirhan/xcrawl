@@ -20,6 +20,8 @@ import { PassportModule } from '@nestjs/passport';
 import { UserAuthController } from '../src/modules/user-auth/user-auth.controller';
 import { UserAuthService } from '../src/modules/user-auth/user-auth.service';
 import { JwtStrategy } from '../src/modules/user-auth/jwt.strategy';
+import { PrismaService } from '../src/modules/prisma/prisma.service';
+import { UsageService } from '../src/modules/usage/usage.service';
 import { AuthController } from '../src/modules/auth/auth.controller';
 import { AuthService } from '../src/modules/auth/auth.service';
 import { ConfigService } from '@nestjs/config';
@@ -61,6 +63,21 @@ function buildAuthServiceMock() {
   };
 }
 
+function buildUsageServiceMock() {
+  return {
+    getUsage: jest.fn(),
+  };
+}
+
+// Minimal PrismaService mock — only user.findUnique is needed, by JwtStrategy.validate()
+function buildPrismaMock() {
+  return {
+    user: {
+      findUnique: jest.fn().mockResolvedValue({ role: 'USER', isActive: true }),
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Test suite
 // ---------------------------------------------------------------------------
@@ -84,6 +101,8 @@ describe('Auth E2E', () => {
       providers: [
         { provide: UserAuthService, useValue: userAuthService },
         { provide: AuthService, useValue: authService },
+        { provide: PrismaService, useValue: buildPrismaMock() },
+        { provide: UsageService, useValue: buildUsageServiceMock() },
         JwtStrategy,
         {
           provide: ConfigService,
