@@ -8,6 +8,7 @@
     <a href="https://github.com/MrMirhan/xcrawl/actions"><img src="https://github.com/MrMirhan/xcrawl/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
     <a href="https://github.com/MrMirhan/xcrawl/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License" /></a>
     <a href="https://github.com/MrMirhan/xcrawl/stargazers"><img src="https://img.shields.io/github/stars/MrMirhan/xcrawl" alt="Stars" /></a>
+    <a href="https://xcrawl.space"><img src="https://img.shields.io/badge/website-xcrawl.space-blue" alt="Website" /></a>
   </p>
 </p>
 
