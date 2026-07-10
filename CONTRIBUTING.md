@@ -38,4 +38,4 @@ Open an issue with:
 
 ## Security
 
-If you find a security vulnerability, please email security@xcrawl.dev instead of opening a public issue.
+If you find a security vulnerability, please email security@xcrawl.space instead of opening a public issue.
