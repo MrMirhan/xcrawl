@@ -1,7 +1,15 @@
+export enum UserRole {
+  PENDING = 'PENDING',
+  USER = 'USER',
+  ADMIN = 'ADMIN',
+}
+
 export interface UserProfile {
   id: string;
   email: string;
   name: string | null;
+  role: UserRole;
+  isActive: boolean;
   createdAt: string;
   settings?: UserSettings | null;
   _count?: {
@@ -56,10 +64,15 @@ export interface SigninRequest {
 }
 
 export interface AuthResponse {
-  user: {
+  success: boolean;
+  pending?: boolean;
+  message?: string;
+  user?: {
     id: string;
     email: string;
-    name: string | null;
+    name?: string;
+    role: UserRole;
+    isActive: boolean;
   };
-  token: string;
+  token?: string;
 }
