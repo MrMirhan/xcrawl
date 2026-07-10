@@ -4,6 +4,44 @@ export enum UserRole {
   ADMIN = 'ADMIN',
 }
 
+export enum UsagePool {
+  PAGES = 'PAGES',
+  SEARCH = 'SEARCH',
+  EXTRACT = 'EXTRACT',
+}
+
+export interface EffectiveLimits {
+  dailyPageLimit: number | null;
+  weeklyPageLimit: number | null;
+  dailySearchLimit: number | null;
+  weeklySearchLimit: number | null;
+  dailyExtractLimit: number | null;
+  weeklyExtractLimit: number | null;
+  canUseOwnLlm: boolean;
+}
+
+export interface UsageSummary {
+  plan: { name: string; description: string | null } | null;
+  pools: Record<UsagePool, { dailyUsed: number; dailyLimit: number | null; weeklyUsed: number; weeklyLimit: number | null }>;
+}
+
+export interface Plan {
+  id: string;
+  name: string;
+  description: string | null;
+  isDefault: boolean;
+  dailyPageLimit: number | null;
+  weeklyPageLimit: number | null;
+  dailySearchLimit: number | null;
+  weeklySearchLimit: number | null;
+  dailyExtractLimit: number | null;
+  weeklyExtractLimit: number | null;
+  canUseOwnLlm: boolean;
+  assignedUsers?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface UserProfile {
   id: string;
   email: string;

@@ -48,6 +48,28 @@ async function main() {
     });
   }
 
+  // 3. Ensure a single default Free plan and backfill existing users
+  await prisma.plan.updateMany({ where: { isDefault: true }, data: { isDefault: false } });
+
+  const freePlan = await prisma.plan.upsert({
+    where: { name: 'Free' },
+    update: {},
+    create: {
+      name: 'Free',
+      description: 'Default plan for new signups.',
+      dailyPageLimit: 5000,
+      weeklyPageLimit: 100000,
+      dailySearchLimit: 500,
+      weeklySearchLimit: 3000,
+      dailyExtractLimit: 500,
+      weeklyExtractLimit: 3000,
+      canUseOwnLlm: true,
+      isDefault: true,
+    },
+  });
+
+  await prisma.user.updateMany({ where: { planId: null }, data: { planId: freePlan.id } });
+
   console.log('\n--- Seed complete ---');
   console.log(`Email:    ${adminEmail}`);
   console.log(`Password: (from your ADMIN_PASSWORD env var)`);

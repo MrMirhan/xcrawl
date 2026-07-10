@@ -17,13 +17,51 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  apiKeys   ApiKey[]
-  jobs      Job[]       @relation("UserJobs")
-  schedules Schedule[]
-  webhooks  WebhookConfig[]
-  settings  UserSettings?
+  apiKeys      ApiKey[]
+  jobs         Job[]       @relation("UserJobs")
+  schedules    Schedule[]
+  webhooks     WebhookConfig[]
+  settings     UserSettings?
+  usageEvents  UsageEvent[]
+
+  planId              String?   @map("plan_id")
+  plan                Plan?     @relation(fields: [planId], references: [id])
+  limitOverrides      Json?     @map("limit_overrides")
+  canUseOwnLlmOverride Boolean? @map("can_use_own_llm_override")
 
   @@map("users")
+}
+
+model Plan {
+  id                 String   @id @default(cuid())
+  name               String   @unique
+  description        String?
+  isDefault          Boolean  @default(false) @map("is_default")
+  dailyPageLimit     Int?     @map("daily_page_limit")
+  weeklyPageLimit    Int?     @map("weekly_page_limit")
+  dailySearchLimit   Int?     @map("daily_search_limit")
+  weeklySearchLimit  Int?     @map("weekly_search_limit")
+  dailyExtractLimit  Int?     @map("daily_extract_limit")
+  weeklyExtractLimit Int?     @map("weekly_extract_limit")
+  canUseOwnLlm       Boolean  @default(false) @map("can_use_own_llm")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  users User[]
+
+  @@map("plans")
+}
+
+model UsageEvent {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id])
+  pool      UsagePool
+  amount    Int       @default(1)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, pool, createdAt])
+  @@map("usage_events")
 }
 
 model UserSettings {
@@ -235,4 +273,10 @@ enum UserRole {
   PENDING
   USER
   ADMIN
+}
+
+enum UsagePool {
+  PAGES
+  SEARCH
+  EXTRACT
 }
