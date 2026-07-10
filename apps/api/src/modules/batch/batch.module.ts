@@ -3,11 +3,13 @@ import { BullModule } from '@nestjs/bullmq';
 import { BatchController } from './batch.controller';
 import { BatchService } from './batch.service';
 import { BatchProcessor } from './batch.processor';
+import { UsageModule } from '../usage/usage.module';
 import { QUEUES } from '@xcrawl/shared';
 
 @Module({
   imports: [
     BullModule.registerQueue({ name: QUEUES.BATCH_SCRAPE }),
+    UsageModule,
   ],
   controllers: [BatchController],
   providers: [BatchService, BatchProcessor],

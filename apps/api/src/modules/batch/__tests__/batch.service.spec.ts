@@ -21,13 +21,18 @@ const mockBatchQueue = {
   add: jest.fn(),
 };
 
+const mockUsageService = {
+  assertWithinQuota: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('BatchService', () => {
   let service: BatchService;
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockAssertPublicUrl.mockResolvedValue(undefined);
-    service = new BatchService(mockBatchQueue as any, mockPrismaService as any);
+    mockUsageService.assertWithinQuota.mockResolvedValue(undefined);
+    service = new BatchService(mockBatchQueue as any, mockPrismaService as any, mockUsageService as any);
   });
 
   describe('startBatch', () => {
@@ -149,6 +154,37 @@ describe('BatchService', () => {
         expect(mockPrismaService.job.create).not.toHaveBeenCalled();
         expect(mockBatchQueue.add).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe('usage quota enforcement', () => {
+    const quotaDto = {
+      urls: ['https://example.com/a', 'https://example.com/b'],
+    };
+
+    beforeEach(() => {
+      mockPrismaService.job.create.mockResolvedValue({ id: 'batch-job-1' });
+      mockBatchQueue.add.mockResolvedValue({});
+    });
+
+    it('calls assertWithinQuota with PAGES pool and userId before enqueueing', async () => {
+      await service.startBatch(quotaDto as any, 'key-1', 'user-1');
+
+      expect(mockUsageService.assertWithinQuota).toHaveBeenCalledWith('user-1', 'PAGES');
+    });
+
+    it('rejects the request when assertWithinQuota throws, before any queue/DB write', async () => {
+      const { ForbiddenException } = await import('@nestjs/common');
+      mockUsageService.assertWithinQuota.mockRejectedValue(
+        new ForbiddenException('Daily PAGES limit reached'),
+      );
+
+      await expect(service.startBatch(quotaDto as any, 'key-1', 'user-1')).rejects.toThrow(
+        ForbiddenException,
+      );
+
+      expect(mockPrismaService.job.create).not.toHaveBeenCalled();
+      expect(mockBatchQueue.add).not.toHaveBeenCalled();
     });
   });
 

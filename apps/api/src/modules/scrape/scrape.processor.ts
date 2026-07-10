@@ -5,7 +5,7 @@ import { CrawlerEngineService } from '../crawler-engine/crawler-engine.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { LlmService } from '../extract/llm.service';
-import { QUEUES } from '@xcrawl/shared';
+import { QUEUES, UsagePool } from '@xcrawl/shared';
 
 @Processor(QUEUES.SCRAPE)
 export class ScrapeProcessor extends WorkerHost {
@@ -29,6 +29,9 @@ export class ScrapeProcessor extends WorkerHost {
       data: { status: 'RUNNING', startedAt: new Date() },
     });
 
+    const jobRecord = await this.prisma.job.findUnique({ where: { id: jobId }, select: { userId: true } });
+    const jobUserId = jobRecord?.userId ?? undefined;
+
     try {
       const result = await this.crawlerEngine.instance.scrape(scrapeOptions);
 
@@ -42,12 +45,10 @@ export class ScrapeProcessor extends WorkerHost {
       if (extractSchema || extractPrompt) {
         const content = result.markdown || result.text || result.html || '';
         if (content) {
-          // Get userId from the job for per-user LLM settings
-          const jobRecord = await this.prisma.job.findUnique({ where: { id: jobId }, select: { userId: true } });
           extractedData = await this.llm.extract(content, {
             schema: extractSchema,
             prompt: extractPrompt,
-            userId: jobRecord?.userId ?? undefined,
+            userId: jobUserId,
           });
         }
       }
@@ -78,6 +79,10 @@ export class ScrapeProcessor extends WorkerHost {
           metadata: { duration: result.metadata.duration },
         },
       });
+
+      if (jobUserId) {
+        await this.prisma.usageEvent.create({ data: { userId: jobUserId, pool: UsagePool.PAGES, amount: 1 } });
+      }
 
       return { ...result, extractedData };
     } catch (error) {

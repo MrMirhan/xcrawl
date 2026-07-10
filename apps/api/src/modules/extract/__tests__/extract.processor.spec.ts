@@ -20,6 +20,9 @@ const mockPrismaService = {
   jobResult: {
     create: jest.fn(),
   },
+  usageEvent: {
+    create: jest.fn(),
+  },
 };
 
 const mockLlmService = {
@@ -55,6 +58,7 @@ describe('ExtractProcessor', () => {
       mockCrawlerEngineService.instance.scrape.mockResolvedValue(mockScrapeResult);
       mockLlmService.extract.mockResolvedValue({ name: 'Product A' });
       mockPrismaService.jobResult.create.mockResolvedValue({});
+      mockPrismaService.usageEvent.create.mockResolvedValue({});
     });
 
     it('marks job as RUNNING at the start of processing', async () => {

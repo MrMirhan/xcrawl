@@ -42,6 +42,10 @@ const mockConfigService = {
   get: jest.fn((key: string, defaultVal?: string) => defaultVal ?? null),
 };
 
+const mockUsageService = {
+  assertWithinQuota: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('ScrapeService', () => {
   let service: ScrapeService;
 
@@ -52,9 +56,11 @@ describe('ScrapeService', () => {
       mockPrismaService as unknown as ConstructorParameters<typeof ScrapeService>[1],
       mockCacheService as unknown as ConstructorParameters<typeof ScrapeService>[2],
       mockConfigService as unknown as ConstructorParameters<typeof ScrapeService>[3],
+      mockUsageService as unknown as ConstructorParameters<typeof ScrapeService>[4],
     );
     service.onModuleInit();
     mockAssertPublicUrl.mockResolvedValue(undefined);
+    mockUsageService.assertWithinQuota.mockResolvedValue(undefined);
   });
 
   describe('onModuleInit / onModuleDestroy', () => {
@@ -100,6 +106,28 @@ describe('ScrapeService', () => {
         );
 
         expect(mockCacheService.get).not.toHaveBeenCalled();
+        expect(mockPrismaService.job.create).not.toHaveBeenCalled();
+        expect(mockScrapeQueue.add).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('usage quota enforcement', () => {
+      it('calls assertWithinQuota with PAGES pool and userId before enqueueing', async () => {
+        await service.scrape(baseDto as never, 'key-1', 'user-1');
+
+        expect(mockUsageService.assertWithinQuota).toHaveBeenCalledWith('user-1', 'PAGES');
+      });
+
+      it('rejects the request when assertWithinQuota throws, before any queue/DB write', async () => {
+        const { ForbiddenException } = await import('@nestjs/common');
+        mockUsageService.assertWithinQuota.mockRejectedValue(
+          new ForbiddenException('Daily PAGES limit reached (1/1)'),
+        );
+
+        await expect(service.scrape(baseDto as never, 'key-1', 'user-1')).rejects.toThrow(
+          ForbiddenException,
+        );
+
         expect(mockPrismaService.job.create).not.toHaveBeenCalled();
         expect(mockScrapeQueue.add).not.toHaveBeenCalled();
       });

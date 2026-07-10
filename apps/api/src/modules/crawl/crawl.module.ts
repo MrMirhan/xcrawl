@@ -5,6 +5,7 @@ import { CrawlController } from './crawl.controller';
 import { CrawlService } from './crawl.service';
 import { CrawlProcessor } from './crawl.processor';
 import { WebhookModule } from '../webhook/webhook.module';
+import { UsageModule } from '../usage/usage.module';
 import { QUEUES } from '@xcrawl/shared';
 
 @Module({
@@ -12,6 +13,7 @@ import { QUEUES } from '@xcrawl/shared';
     BullModule.registerQueue({ name: QUEUES.CRAWL }),
     ConfigModule,
     WebhookModule,
+    UsageModule,
   ],
   controllers: [CrawlController],
   providers: [CrawlService, CrawlProcessor],

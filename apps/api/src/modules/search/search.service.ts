@@ -1,6 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CrawlerEngineService } from '../crawler-engine/crawler-engine.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { UsageService } from '../usage/usage.service';
+import { UsagePool } from '@xcrawl/shared';
 import { SearchRequestDto } from './dto/search-request.dto';
 
 interface SearchResult {
@@ -26,9 +29,12 @@ export class SearchService {
   constructor(
     private config: ConfigService,
     private crawlerEngine: CrawlerEngineService,
+    private prisma: PrismaService,
+    private usageService: UsageService,
   ) {}
 
-  async search(dto: SearchRequestDto) {
+  async search(dto: SearchRequestDto, userId?: string) {
+    await this.usageService.assertWithinQuota(userId, UsagePool.SEARCH);
     const limit = dto.limit ?? 5;
     const formats = dto.formats ?? ['markdown'];
     const searxngUrl = dto.searxngUrl ?? this.config.get('SEARXNG_URL', '');
@@ -43,6 +49,9 @@ export class SearchService {
     }
 
     if (searchResults.length === 0) {
+      if (userId) {
+        await this.prisma.usageEvent.create({ data: { userId, pool: UsagePool.SEARCH, amount: 1 } });
+      }
       return { success: true, data: [], count: 0 };
     }
 
@@ -75,6 +84,10 @@ export class SearchService {
           snippet: sr.snippet,
         });
       }
+    }
+
+    if (userId) {
+      await this.prisma.usageEvent.create({ data: { userId, pool: UsagePool.SEARCH, amount: 1 } });
     }
 
     return {

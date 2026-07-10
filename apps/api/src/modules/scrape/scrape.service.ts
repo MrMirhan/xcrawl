@@ -4,9 +4,10 @@ import { Queue, QueueEvents } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../cache/cache.service';
 import { ScrapeRequestDto } from './dto/scrape-request.dto';
-import { QUEUES } from '@xcrawl/shared';
+import { QUEUES, UsagePool } from '@xcrawl/shared';
 import { ConfigService } from '@nestjs/config';
 import { assertPublicUrl } from '../../common/utils/url-validator';
+import { UsageService } from '../usage/usage.service';
 
 @Injectable()
 export class ScrapeService implements OnModuleInit, OnModuleDestroy {
@@ -18,6 +19,7 @@ export class ScrapeService implements OnModuleInit, OnModuleDestroy {
     private prisma: PrismaService,
     private cache: CacheService,
     private config: ConfigService,
+    private usageService: UsageService,
   ) {}
 
   onModuleInit() {
@@ -33,6 +35,7 @@ export class ScrapeService implements OnModuleInit, OnModuleDestroy {
 
   async scrape(dto: ScrapeRequestDto, apiKeyId?: string, userId?: string) {
     await assertPublicUrl(dto.url);
+    await this.usageService.assertWithinQuota(userId, UsagePool.PAGES);
 
     const formats = dto.formats ?? ['markdown'];
     const onlyMainContent = dto.onlyMainContent ?? true;

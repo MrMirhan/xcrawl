@@ -22,13 +22,18 @@ const mockExtractQueue = {
   add: jest.fn(),
 };
 
+const mockUsageService = {
+  assertWithinQuota: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('ExtractService', () => {
   let service: ExtractService;
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockAssertPublicUrl.mockResolvedValue(undefined);
-    service = new ExtractService(mockExtractQueue as any, mockPrismaService as any);
+    mockUsageService.assertWithinQuota.mockResolvedValue(undefined);
+    service = new ExtractService(mockExtractQueue as any, mockPrismaService as any, mockUsageService as any);
   });
 
   describe('startExtract', () => {
@@ -110,6 +115,28 @@ describe('ExtractService', () => {
         );
 
         await expect(service.startExtract(privateDto as any)).rejects.toThrow(BadRequestException);
+
+        expect(mockPrismaService.job.create).not.toHaveBeenCalled();
+        expect(mockExtractQueue.add).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('usage quota enforcement', () => {
+      it('calls assertWithinQuota with EXTRACT pool and userId before enqueueing', async () => {
+        await service.startExtract(dto as any, 'key-1', 'user-1');
+
+        expect(mockUsageService.assertWithinQuota).toHaveBeenCalledWith('user-1', 'EXTRACT');
+      });
+
+      it('rejects the request when assertWithinQuota throws, before any queue/DB write', async () => {
+        const { ForbiddenException } = await import('@nestjs/common');
+        mockUsageService.assertWithinQuota.mockRejectedValue(
+          new ForbiddenException('Daily EXTRACT limit reached'),
+        );
+
+        await expect(service.startExtract(dto as any, 'key-1', 'user-1')).rejects.toThrow(
+          ForbiddenException,
+        );
 
         expect(mockPrismaService.job.create).not.toHaveBeenCalled();
         expect(mockExtractQueue.add).not.toHaveBeenCalled();

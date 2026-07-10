@@ -5,7 +5,7 @@ import { JobStatus } from '@xcrawl/db';
 import { CrawlerEngineService } from '../crawler-engine/crawler-engine.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
-import { QUEUES } from '@xcrawl/shared';
+import { QUEUES, UsagePool } from '@xcrawl/shared';
 
 const MAX_RETRIES = 2;
 
@@ -29,6 +29,9 @@ export class BatchProcessor extends WorkerHost {
       where: { id: jobId },
       data: { status: 'RUNNING', startedAt: new Date() },
     });
+
+    const jobRecord = await this.prisma.job.findUnique({ where: { id: jobId }, select: { userId: true } });
+    const jobUserId = jobRecord?.userId ?? undefined;
 
     let completed = 0;
     const errors: string[] = [];
@@ -84,6 +87,10 @@ export class BatchProcessor extends WorkerHost {
             where: { id: jobId },
             data: { resultCount: completed },
           });
+
+          if (jobUserId) {
+            await this.prisma.usageEvent.create({ data: { userId: jobUserId, pool: UsagePool.PAGES, amount: 1 } });
+          }
 
           this.logger.debug(`Batch ${jobId}: ${completed}/${urls.length} - ${url}`);
         } catch (error) {

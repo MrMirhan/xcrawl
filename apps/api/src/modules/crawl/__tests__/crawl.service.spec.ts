@@ -41,6 +41,10 @@ const mockConfigService = {
   get: jest.fn().mockReturnValue('redis://localhost:6379'),
 };
 
+const mockUsageService = {
+  assertWithinQuota: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('CrawlService', () => {
   let service: CrawlService;
 
@@ -50,10 +54,12 @@ describe('CrawlService', () => {
       mockCrawlQueue as any,
       mockPrismaService as any,
       mockConfigService as any,
+      mockUsageService as any,
     );
     // Simulate onModuleInit so redis is assigned
     service.onModuleInit();
     mockAssertPublicUrl.mockResolvedValue(undefined);
+    mockUsageService.assertWithinQuota.mockResolvedValue(undefined);
   });
 
   describe('onModuleInit / onModuleDestroy', () => {
@@ -159,6 +165,56 @@ describe('CrawlService', () => {
         await expect(
           service.startCrawl({ url: 'http://169.254.169.254/' } as any),
         ).rejects.toThrow(BadRequestException);
+
+        expect(mockPrismaService.job.create).not.toHaveBeenCalled();
+        expect(mockCrawlQueue.add).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('usage quota enforcement', () => {
+      it('calls assertWithinQuota with PAGES pool and userId before enqueueing', async () => {
+        await service.startCrawl(dto as any, 'key-1', 'user-1');
+
+        expect(mockUsageService.assertWithinQuota).toHaveBeenCalledWith('user-1', 'PAGES');
+      });
+
+      it('also checks EXTRACT pool when extractSchema is present', async () => {
+        await service.startCrawl({ ...dto, extractSchema: { type: 'object' } } as any, 'key-1', 'user-1');
+
+        expect(mockUsageService.assertWithinQuota).toHaveBeenCalledWith('user-1', 'PAGES');
+        expect(mockUsageService.assertWithinQuota).toHaveBeenCalledWith('user-1', 'EXTRACT');
+      });
+
+      it('also checks EXTRACT pool when extractPrompt is present', async () => {
+        await service.startCrawl({ ...dto, extractPrompt: 'Extract names' } as any, 'key-1', 'user-1');
+
+        expect(mockUsageService.assertWithinQuota).toHaveBeenCalledWith('user-1', 'PAGES');
+        expect(mockUsageService.assertWithinQuota).toHaveBeenCalledWith('user-1', 'EXTRACT');
+      });
+
+      it('rejects the request when the PAGES check throws, before any queue/DB write', async () => {
+        const { ForbiddenException } = await import('@nestjs/common');
+        mockUsageService.assertWithinQuota.mockRejectedValueOnce(
+          new ForbiddenException('Daily PAGES limit reached'),
+        );
+
+        await expect(service.startCrawl(dto as any, 'key-1', 'user-1')).rejects.toThrow(
+          ForbiddenException,
+        );
+
+        expect(mockPrismaService.job.create).not.toHaveBeenCalled();
+        expect(mockCrawlQueue.add).not.toHaveBeenCalled();
+      });
+
+      it('rejects the request when the EXTRACT check throws, before any queue/DB write', async () => {
+        const { ForbiddenException } = await import('@nestjs/common');
+        mockUsageService.assertWithinQuota
+          .mockResolvedValueOnce(undefined)
+          .mockRejectedValueOnce(new ForbiddenException('Daily EXTRACT limit reached'));
+
+        await expect(
+          service.startCrawl({ ...dto, extractPrompt: 'Extract names' } as any, 'key-1', 'user-1'),
+        ).rejects.toThrow(ForbiddenException);
 
         expect(mockPrismaService.job.create).not.toHaveBeenCalled();
         expect(mockCrawlQueue.add).not.toHaveBeenCalled();

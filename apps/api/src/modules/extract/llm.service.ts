@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { UsageService } from '../usage/usage.service';
 
 /**
  * Shared LLM extraction service used by Scrape, Crawl, and Extract processors.
@@ -13,6 +14,7 @@ export class LlmService {
   constructor(
     private config: ConfigService,
     private prisma: PrismaService,
+    private usageService: UsageService,
   ) {}
 
   /**
@@ -31,6 +33,13 @@ export class LlmService {
       baseUrl?: string;
     },
   ): Promise<unknown> {
+    if (options?.userId) {
+      const limits = await this.usageService.getEffectiveLimits(options.userId);
+      if (!limits.canUseOwnLlm) {
+        throw new ForbiddenException('Your plan does not include LLM/extract access');
+      }
+    }
+
     // Resolve LLM config: explicit options > user settings > env vars
     let provider = options?.provider;
     let apiKey = options?.apiKey;

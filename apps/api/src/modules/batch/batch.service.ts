@@ -3,9 +3,10 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { BatchScrapeRequestDto } from './dto/batch-request.dto';
-import { QUEUES } from '@xcrawl/shared';
+import { QUEUES, UsagePool } from '@xcrawl/shared';
 import { ownedWhere } from '../../common/utils/ownership';
 import { assertPublicUrl } from '../../common/utils/url-validator';
+import { UsageService } from '../usage/usage.service';
 
 @Injectable()
 export class BatchService {
@@ -14,6 +15,7 @@ export class BatchService {
   constructor(
     @InjectQueue(QUEUES.BATCH_SCRAPE) private batchQueue: Queue,
     private prisma: PrismaService,
+    private usageService: UsageService,
   ) {}
 
   async startBatch(dto: BatchScrapeRequestDto, apiKeyId?: string, userId?: string) {
@@ -28,6 +30,7 @@ export class BatchService {
       }),
     );
     if (dto.webhookUrl) await assertPublicUrl(dto.webhookUrl);
+    await this.usageService.assertWithinQuota(userId, UsagePool.PAGES);
 
     const job = await this.prisma.job.create({
       data: {

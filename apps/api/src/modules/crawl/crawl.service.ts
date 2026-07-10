@@ -5,9 +5,10 @@ import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrawlRequestDto } from './dto/crawl-request.dto';
-import { QUEUES } from '@xcrawl/shared';
+import { QUEUES, UsagePool } from '@xcrawl/shared';
 import { ownedWhere } from '../../common/utils/ownership';
 import { assertPublicUrl } from '../../common/utils/url-validator';
+import { UsageService } from '../usage/usage.service';
 
 @Injectable()
 export class CrawlService implements OnModuleInit, OnModuleDestroy {
@@ -18,6 +19,7 @@ export class CrawlService implements OnModuleInit, OnModuleDestroy {
     @InjectQueue(QUEUES.CRAWL) private crawlQueue: Queue,
     private prisma: PrismaService,
     private config: ConfigService,
+    private usageService: UsageService,
   ) {}
 
   onModuleInit() {
@@ -38,6 +40,10 @@ export class CrawlService implements OnModuleInit, OnModuleDestroy {
 
   async startCrawl(dto: CrawlRequestDto, apiKeyId?: string, userId?: string) {
     await assertPublicUrl(dto.url);
+    await this.usageService.assertWithinQuota(userId, UsagePool.PAGES);
+    if (dto.extractSchema || dto.extractPrompt) {
+      await this.usageService.assertWithinQuota(userId, UsagePool.EXTRACT);
+    }
 
     const job = await this.prisma.job.create({
       data: {

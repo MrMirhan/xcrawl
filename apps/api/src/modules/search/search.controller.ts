@@ -31,6 +31,6 @@ export class SearchController {
         dto.searxngUrl = settings.searxngUrl;
       }
     }
-    return this.searchService.search(dto);
+    return this.searchService.search(dto, req.userId);
   }
 }

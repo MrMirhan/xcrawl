@@ -13,6 +13,16 @@ const mockConfigService = {
   get: jest.fn((key: string, defaultValue?: string) => defaultValue ?? ''),
 };
 
+const mockPrismaService = {
+  usageEvent: {
+    create: jest.fn().mockResolvedValue({}),
+  },
+};
+
+const mockUsageService = {
+  assertWithinQuota: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('SearchService', () => {
   let service: SearchService;
   let originalFetch: typeof global.fetch;
@@ -20,9 +30,13 @@ describe('SearchService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     originalFetch = global.fetch;
+    mockPrismaService.usageEvent.create.mockResolvedValue({});
+    mockUsageService.assertWithinQuota.mockResolvedValue(undefined);
     service = new SearchService(
       mockConfigService as never,
       mockCrawlerEngineService as never,
+      mockPrismaService as never,
+      mockUsageService as never,
     );
   });
 
@@ -184,6 +198,60 @@ describe('SearchService', () => {
       const result = await service.search(dto);
 
       expect(result.count).toBe(2);
+    });
+  });
+
+  describe('usage quota enforcement & event write', () => {
+    it('calls assertWithinQuota with SEARCH pool and userId before searching', async () => {
+      const dto: SearchRequestDto = { query: 'typescript', searxngUrl: 'http://searxng.local' };
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ results: [] }),
+      }) as jest.Mock;
+
+      await service.search(dto, 'user-1');
+
+      expect(mockUsageService.assertWithinQuota).toHaveBeenCalledWith('user-1', 'SEARCH');
+    });
+
+    it('rejects the request when assertWithinQuota throws, before touching the search engine', async () => {
+      const { ForbiddenException } = await import('@nestjs/common');
+      mockUsageService.assertWithinQuota.mockRejectedValue(
+        new ForbiddenException('Daily SEARCH limit reached'),
+      );
+      const dto: SearchRequestDto = { query: 'typescript', searxngUrl: 'http://searxng.local' };
+      global.fetch = jest.fn() as jest.Mock;
+
+      await expect(service.search(dto, 'user-1')).rejects.toThrow(ForbiddenException);
+
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('writes one SEARCH usageEvent when userId is present and search succeeds', async () => {
+      const dto: SearchRequestDto = { query: 'typescript', searxngUrl: 'http://searxng.local' };
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ results: [] }),
+      }) as jest.Mock;
+
+      await service.search(dto, 'user-1');
+
+      expect(mockPrismaService.usageEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { userId: 'user-1', pool: 'SEARCH', amount: 1 } }),
+      );
+      expect(mockPrismaService.usageEvent.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not write a usageEvent when userId is absent', async () => {
+      const dto: SearchRequestDto = { query: 'typescript', searxngUrl: 'http://searxng.local' };
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ results: [] }),
+      }) as jest.Mock;
+
+      await service.search(dto);
+
+      expect(mockPrismaService.usageEvent.create).not.toHaveBeenCalled();
     });
   });
 });

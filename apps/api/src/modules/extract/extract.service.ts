@@ -3,9 +3,10 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { ExtractRequestDto } from './dto/extract-request.dto';
-import { QUEUES } from '@xcrawl/shared';
+import { QUEUES, UsagePool } from '@xcrawl/shared';
 import { ownedWhere } from '../../common/utils/ownership';
 import { assertPublicUrl } from '../../common/utils/url-validator';
+import { UsageService } from '../usage/usage.service';
 
 @Injectable()
 export class ExtractService {
@@ -14,6 +15,7 @@ export class ExtractService {
   constructor(
     @InjectQueue(QUEUES.EXTRACT) private extractQueue: Queue,
     private prisma: PrismaService,
+    private usageService: UsageService,
   ) {}
 
   async startExtract(dto: ExtractRequestDto, apiKeyId?: string, userId?: string) {
@@ -27,6 +29,8 @@ export class ExtractService {
         }
       }),
     );
+
+    await this.usageService.assertWithinQuota(userId, UsagePool.EXTRACT);
 
     const job = await this.prisma.job.create({
       data: {

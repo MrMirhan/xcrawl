@@ -9,7 +9,7 @@ import { WebhookService } from '../webhook/webhook.service';
 import { CrawlGateway } from '../gateway/crawl.gateway';
 import { LlmService } from '../extract/llm.service';
 import { CrawlService } from './crawl.service';
-import { QUEUES } from '@xcrawl/shared';
+import { QUEUES, UsagePool } from '@xcrawl/shared';
 import type { ScrapeOutput } from '@xcrawl/crawler';
 
 const LLM_CONCURRENCY = 5;
@@ -47,6 +47,9 @@ export class CrawlProcessor extends WorkerHost {
       data: { status: 'RUNNING', startedAt: new Date() },
     });
 
+    const jobRecord = await this.prisma.job.findUnique({ where: { id: jobId }, select: { userId: true } });
+    const jobUserId = jobRecord?.userId ?? undefined;
+
     try {
       // Phase 1: Crawl all pages
       await this.crawlerEngine.instance.crawl(crawlOptions, {
@@ -77,6 +80,10 @@ export class CrawlProcessor extends WorkerHost {
             data: { resultCount: { increment: 1 } },
           });
 
+          if (jobUserId) {
+            await this.prisma.usageEvent.create({ data: { userId: jobUserId, pool: UsagePool.PAGES, amount: 1 } });
+          }
+
           this.crawlGateway.emitPageComplete(jobId, {
             url: result.url,
             statusCode: result.statusCode,
@@ -98,8 +105,7 @@ export class CrawlProcessor extends WorkerHost {
       });
 
       // Phase 2: Run LLM extraction with bounded concurrency
-      if (hasExtraction && !cancelled) {
-        const jobRecord = await this.prisma.job.findUnique({ where: { id: jobId }, select: { userId: true } });
+if (hasExtraction && !cancelled) {
         const results = await this.prisma.jobResult.findMany({
           where: { jobId },
           select: { id: true, markdown: true, text: true, html: true },
@@ -119,13 +125,17 @@ export class CrawlProcessor extends WorkerHost {
                 const extractedData = await this.llm.extract(content, {
                   schema: extractSchema,
                   prompt: extractPrompt,
-                  userId: jobRecord?.userId ?? undefined,
+                  userId: jobUserId,
                 });
 
                 await this.prisma.jobResult.update({
                   where: { id: result.id },
                   data: { extractedData: extractedData as object },
                 });
+
+                if (extractedData !== null && extractedData !== undefined && jobUserId) {
+                  await this.prisma.usageEvent.create({ data: { userId: jobUserId, pool: UsagePool.EXTRACT, amount: 1 } });
+                }
               } catch (err) {
                 this.logger.warn(`LLM extraction failed for result ${result.id}: ${err}`);
               }

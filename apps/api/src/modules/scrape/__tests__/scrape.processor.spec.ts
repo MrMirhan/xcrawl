@@ -27,6 +27,9 @@ const mockPrismaService = {
   jobResult: {
     create: jest.fn(),
   },
+  usageEvent: {
+    create: jest.fn(),
+  },
 };
 
 const mockStorageService = {
@@ -64,6 +67,7 @@ describe('ScrapeProcessor', () => {
       mockPrismaService.job.findUnique.mockResolvedValue(jobRecord);
       mockCrawlerEngineService.instance.scrape.mockResolvedValue(mockScrapeResult);
       mockPrismaService.jobResult.create.mockResolvedValue({});
+      mockPrismaService.usageEvent.create.mockResolvedValue({});
     });
 
     describe('status lifecycle', () => {

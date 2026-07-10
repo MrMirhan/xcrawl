@@ -4,7 +4,7 @@ import { Job } from 'bullmq';
 import { CrawlerEngineService } from '../crawler-engine/crawler-engine.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { LlmService } from './llm.service';
-import { QUEUES } from '@xcrawl/shared';
+import { QUEUES, UsagePool } from '@xcrawl/shared';
 
 @Processor(QUEUES.EXTRACT)
 export class ExtractProcessor extends WorkerHost {
@@ -58,7 +58,7 @@ export class ExtractProcessor extends WorkerHost {
           },
         );
 
-        await this.prisma.jobResult.create({
+await this.prisma.jobResult.create({
           data: {
             jobId,
             url,
@@ -67,6 +67,10 @@ export class ExtractProcessor extends WorkerHost {
             metadata: scrapeResult.metadata as object,
           },
         });
+
+        if (extractedData !== null && extractedData !== undefined && jobRecord?.userId) {
+          await this.prisma.usageEvent.create({ data: { userId: jobRecord.userId, pool: UsagePool.EXTRACT, amount: 1 } });
+        }
 
         successCount++;
       } catch (error) {
