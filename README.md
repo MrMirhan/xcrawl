@@ -59,6 +59,7 @@
 
 - **Auth** — Email/password signup with JWT
 - **Admin approval** — Gate new signups behind admin review (`REGISTRATION_REQUIRE_APPROVAL`), or disable signup entirely (`DISABLE_REGISTRATION`); admins manage roles and enable/disable accounts from `/admin/users`
+- **Plans & usage limits** — Admin-managed plans (`/admin/plans`) set daily/weekly caps per pool (pages, search, extract) with per-user overrides; BYOK LLM access is gated per plan too
 - **Per-user LLM** — Bring your own API key (OpenAI, Anthropic, Ollama, OpenRouter)
 - **Per-user proxies** — Personal proxy list with batch import and liveness testing
 - **Per-user search** — Custom SearXNG instance URL

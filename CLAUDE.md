@@ -66,7 +66,7 @@ packages/* have zero workspace dependencies
 
 ### API (NestJS)
 
-21 module directories in `apps/api/src/modules/` — 16 feature modules (`auth`, `batch`, `cleanup`, `crawl`, `extract`, `health`, `job`, `map`, `mcp`, `proxy`, `schedule`, `scrape`, `search`, `user-auth`, `users`, `webhook`), each owning its controller, service, DTO, and BullMQ processor (if async), plus 5 infrastructure modules (Prisma, CrawlerEngine, Storage, Cache, Gateway) that are shared singletons. Note: `auth` is API-key CRUD (`/auth/keys`); JWT signup/signin/settings live in `user-auth`; admin user management lives in `users`.
+23 module directories in `apps/api/src/modules/` — 18 feature modules (`auth`, `batch`, `cleanup`, `crawl`, `extract`, `health`, `job`, `map`, `mcp`, `plans`, `proxy`, `schedule`, `scrape`, `search`, `usage`, `user-auth`, `users`, `webhook`), each owning its controller, service, DTO, and BullMQ processor (if async), plus 5 infrastructure modules (Prisma, CrawlerEngine, Storage, Cache, Gateway) that are shared singletons. Note: `auth` is API-key CRUD (`/auth/keys`); JWT signup/signin/settings live in `user-auth`; admin user management lives in `users`.
 
 **Route structure:** All endpoints under `/api/v1`. Swagger docs at `/api/docs`.
 
@@ -76,6 +76,8 @@ packages/* have zero workspace dependencies
 **Auth:** Dual-strategy via `ApiKeyGuard`. JWT Bearer (from `/user/signin`) OR `X-API-Key` header. Guard sets `req.userId` and optionally `req.apiKeyId`. `UserAuthModule` is `@Global()`.
 
 **Roles & account status:** `User.role` (`UserRole`: `PENDING`/`USER`/`ADMIN`, `@default(USER)`) and `User.isActive` (`@default(true)`) gate access. `DISABLE_REGISTRATION` and `REGISTRATION_REQUIRE_APPROVAL` (both env, default `false`) control `POST /user/signup` — the former blocks it outright, the latter makes new signups land as `PENDING` with no JWT issued until an admin approves. `signin` rejects `PENDING` or `isActive: false` accounts with 403, checked after password verification (no user-enumeration leak). Account status is re-checked from the DB on every authenticated request, not just at login — `ApiKeyGuard` and `JwtStrategy.validate()` both call `assertAccountUsable()` (`common/utils/user-status.ts`), so disabling a user revokes access immediately even mid-session with an unexpired JWT or a live API key. `ApiKeyGuard` also stashes `request.userRole`; `RolesGuard` + `@Roles(...)` (`common/guards/roles.guard.ts`) read it with no extra query to gate admin-only routes — the `users` module (`/users`) uses this to expose list/get/approve/reject/role/status endpoints, blocking self-modification and blocking demotion/disabling of the last remaining active admin.
+
+**Usage limits & plans:** Three independently-tracked pools (`UsagePool`: `PAGES`/`SEARCH`/`EXTRACT`) cap consumption on a rolling 24h + rolling 7-day basis (no calendar reset, no cron) — PAGES is scrape+crawl+batch-scrape page output combined, SEARCH is `/search` calls, EXTRACT is the `/extract` endpoint plus any scrape or crawl job's optional LLM extraction (when `extractSchema`/`extractPrompt` is attached to the request) combined; `/map` is never limited. `Plan` (admin-managed tier) holds six nullable `Int?` limits (`null` = unlimited) plus `canUseOwnLlm`; per-user `User.limitOverrides` (sparse `Json?` — key presence means overridden, `null` value means overridden-to-unlimited) and `canUseOwnLlmOverride` layer on top. All override-merge logic lives in one place, the pure function `resolvePlanLimits()` (`apps/api/src/modules/usage/plan-resolver.ts`), wrapped by `UsageService` (`getEffectiveLimits`, `getUsage` — powers `GET /user/usage`, `assertWithinQuota` — throws `ForbiddenException`, no-ops without a `userId` or when unlimited) — mirroring how account-status checks centralize into `assertAccountUsable()`. `assertWithinQuota` runs up front in `scrape`/`crawl`/`batch`/`search`/`extract` services (`scrape` and `crawl` both check PAGES always, plus EXTRACT when `extractSchema`/`extractPrompt` is attached to the request); `map` has no such call, by design. `LlmService.extract()` — invoked by the scrape, crawl, and extract processors whenever `extractSchema`/`extractPrompt` is present — separately gates BYOK via `getEffectiveLimits(userId).canUseOwnLlm` regardless of a personal key being configured. Admin-only `/plans` (list/create/update/delete, 409 on delete if users are assigned; a new plan auto-becomes default if it's the first one ever or `isDefault: true` is passed, unsetting the previous default in the same write) plus `/users/:id/plan` and `/users/:id/limits` (reassign plan, set/clear per-user overrides, DTO-whitelisted) round out admin management.
 
 **SSRF protection:** `assertPublicUrl()` (`apps/api/src/common/utils/url-validator.ts`) rejects private/link-local IPs and blocked hostnames (cloud metadata endpoints). It is called before enqueue/fetch everywhere a user-supplied URL enters the system — `scrape`, `crawl`, `map`, `batch`, `extract`, `schedule`, `webhook`, and `user-auth` services all call it. Any new feature that accepts a user-supplied URL must call it too.
 
@@ -103,9 +105,9 @@ LLM config (provider, model, apiKey, baseUrl), proxy URLs, and SearXNG URL are s
 
 Prisma 7 with `prisma-client` generator, output to `packages/db/src/generated/prisma/`. Config in `packages/db/prisma.config.ts`. Uses `@prisma/adapter-pg` (direct TCP, no engine binary).
 
-9 models: User, UserSettings, ApiKey, Job, JobResult, WebhookConfig, WebhookDelivery, ProxyConfig, Schedule.
+11 models: User, UserSettings, ApiKey, Job, JobResult, WebhookConfig, WebhookDelivery, ProxyConfig, Schedule, Plan, UsageEvent.
 
-Enums: `JobType` (SCRAPE/CRAWL/BATCH_SCRAPE/MAP/EXTRACT), `JobStatus` (PENDING/RUNNING/COMPLETED/FAILED/CANCELLED/PARTIAL), `UserRole` (PENDING/USER/ADMIN).
+Enums: `JobType` (SCRAPE/CRAWL/BATCH_SCRAPE/MAP/EXTRACT), `JobStatus` (PENDING/RUNNING/COMPLETED/FAILED/CANCELLED/PARTIAL), `UserRole` (PENDING/USER/ADMIN), `UsagePool` (PAGES/SEARCH/EXTRACT).
 
 ### Frontend (Next.js)
 
@@ -472,18 +474,19 @@ Only the first 8 chars (`xc_` + 5 hex) are stored unhashed as a lookup prefix; `
 
 | File | Purpose |
 |------|---------|
-| `apps/api/src/app.module.ts` | Root NestJS module, wires all 21 modules (16 feature + 5 infra) |
+| `apps/api/src/app.module.ts` | Root NestJS module, wires all 23 modules (18 feature + 5 infra) |
 | `apps/api/src/common/guards/api-key.guard.ts` | Dual auth guard (JWT + API key) |
 | `apps/api/src/common/guards/rate-limit.guard.ts` | Redis sliding-window rate limiter (`ApiKeyRateLimitGuard`) |
 | `apps/api/src/common/guards/roles.guard.ts` | Reads `request.userRole` to enforce `@Roles(...)` on admin-only routes |
 | `apps/api/src/common/utils/url-validator.ts` | SSRF guard — rejects private/link-local IPs and blocked hostnames |
 | `apps/api/src/modules/users/users.service.ts` | Admin user management — list/approve/reject pending signups, change role/status |
+| `apps/api/src/modules/usage/plan-resolver.ts` | `resolvePlanLimits()` — single source of truth for plan + per-user override merge, wrapped by `UsageService` |
 | `apps/api/src/modules/mcp/mcp.service.ts` | MCP session lifecycle (`McpServer`, Streamable HTTP transport) |
 | `apps/api/src/modules/mcp/mcp.controller.ts` | `/mcp` route handler (POST/GET/DELETE per MCP spec) |
 | `apps/api/src/config/app.config.ts` | Typed config slices for `@nestjs/config` |
 | `packages/crawler/src/engine.ts` | Core crawling engine with auto-engine selection |
 | `packages/crawler/src/types.ts` | Engine option types |
-| `packages/db/prisma/schema.prisma` | Database schema (9 models) |
+| `packages/db/prisma/schema.prisma` | Database schema (11 models) |
 | `packages/db/prisma.config.ts` | Prisma CLI config (datasource URL via dotenv) |
 | `packages/db/src/index.ts` | Re-exports PrismaClient + PrismaPg adapter |
 | `packages/shared/src/constants/defaults.ts` | Queue names, default timeouts, limits |
