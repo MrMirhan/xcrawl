@@ -241,6 +241,17 @@ xcrawl/
 
 ## Production Deployment
 
+### Pre-built Docker images
+
+Pre-built multi-arch images (amd64/arm64) are published to GHCR on every release:
+
+```bash
+docker pull ghcr.io/mrmirhan/xcrawl-api:latest
+docker pull ghcr.io/mrmirhan/xcrawl-web:latest
+```
+
+Pin to a specific version instead of `latest` for production (e.g. `:1.2.0`). The web image reads `NEXT_PUBLIC_API_URL` from the environment at container start (not baked in at build time), so point it at wherever you're running the API.
+
 ```bash
 cp .env.production.example .env   # fill in domain, secrets, admin
 docker compose up -d --build
