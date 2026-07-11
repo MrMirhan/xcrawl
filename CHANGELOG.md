@@ -1,3 +1,5 @@
 # Changelog
 
-All notable changes to this project are documented here, generated from release PRs.
+All notable changes to this project are documented in this file, following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## [Unreleased]

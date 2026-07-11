@@ -28,15 +28,16 @@ Thanks for your interest in contributing to XCrawl!
 - Ensure the project builds: `pnpm run build`
 - Add or update tests when applicable
 - Follow existing code style and patterns
+- Add a line under `## [Unreleased]` in `CHANGELOG.md` describing the change (unless labeled `skip-changelog` for trivial changes like docs/CI/chore) — a plain bullet is enough, `### Added`/`### Fixed`-style subheadings are optional
 
 ## Releasing
 
 Create a GitHub Release with a semver tag (`v1.2.0`, `v` prefix required). This automatically triggers two workflows:
 
 - **Release Images** — builds and pushes multi-arch `ghcr.io/mrmirhan/xcrawl-api` and `xcrawl-web` images, tagged with the version, `major.minor`, and `latest`.
-- **Changelog** — opens a PR adding the release's changes to `CHANGELOG.md`. Review and merge it after.
+- **Stamp Changelog** — moves `CHANGELOG.md`'s `[Unreleased]` section into a new `## [<version>] - <date>` section and commits it directly to `main`.
 
-If the changelog PR needs regenerating, re-run the "Changelog" workflow manually from the Actions tab with the version as input.
+`CHANGELOG.md` should already be current before releasing — every PR adds its own entry under `[Unreleased]` (see Pull Requests above), so there's nothing to write by hand at release time.
 
 ## Reporting Bugs
 
