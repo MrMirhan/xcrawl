@@ -13,11 +13,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify CHANGELOG.md was updated
+      - name: Test the changelog checker itself
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-changelog') }}
+        run: node --test scripts/check-changelog.test.mjs
+
+      - name: Verify CHANGELOG.md was updated under [Unreleased]
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-changelog') }}
         run: |
           git fetch origin "${{ github.base_ref }}" --depth=1
-          if ! git diff --name-only "origin/${{ github.base_ref }}"...HEAD | grep -qx 'CHANGELOG.md'; then
-            echo "::error::CHANGELOG.md was not updated in this PR. Add a line under [Unreleased] describing the change, or add the 'skip-changelog' label if this PR doesn't need one (docs/CI/chore)."
-            exit 1
-          fi
+          node scripts/check-changelog.mjs "origin/${{ github.base_ref }}"
