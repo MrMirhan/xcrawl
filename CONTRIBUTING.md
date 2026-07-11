@@ -31,9 +31,12 @@ Thanks for your interest in contributing to XCrawl!
 
 ## Releasing
 
-1. Trigger the "Changelog" workflow manually (Actions tab → Changelog → Run workflow) with the new version, e.g. `v1.2.0`.
-2. Review and merge the changelog PR it opens.
-3. Create a GitHub Release with tag `v1.2.0` (matching semver, `v` prefix) — this triggers the "Release Images" workflow, which builds and pushes multi-arch `ghcr.io/mrmirhan/xcrawl-api` and `xcrawl-web` images tagged with the version, `major.minor`, and `latest`.
+Create a GitHub Release with a semver tag (`v1.2.0`, `v` prefix required). This automatically triggers two workflows:
+
+- **Release Images** — builds and pushes multi-arch `ghcr.io/mrmirhan/xcrawl-api` and `xcrawl-web` images, tagged with the version, `major.minor`, and `latest`.
+- **Changelog** — opens a PR adding the release's changes to `CHANGELOG.md`. Review and merge it after.
+
+If the changelog PR needs regenerating, re-run the "Changelog" workflow manually from the Actions tab with the version as input.
 
 ## Reporting Bugs
 

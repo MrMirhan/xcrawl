@@ -1,11 +1,13 @@
 name: Changelog
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       release_version:
-        description: 'Version being released (e.g. v1.2.0)'
-        required: true
+        description: 'Version to generate changelog for (e.g. v1.2.0) — only needed for a manual re-run'
+        required: false
 
 permissions:
   contents: write
@@ -22,6 +24,6 @@ jobs:
       - name: Run Changelog CI
         uses: saadmk11/changelog-ci@v1.2.0
         with:
-          release_version: ${{ github.event.inputs.release_version }}
+          release_version: ${{ github.event.inputs.release_version || github.event.release.tag_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
