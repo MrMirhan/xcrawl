@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file, following [Keep
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-11
+
 ### Added
 - User roles (`PENDING`/`USER`/`ADMIN`) with an admin approval workflow — `DISABLE_REGISTRATION` and `REGISTRATION_REQUIRE_APPROVAL` control signup behavior
 - Admin user management at `/admin/users` — approve/reject pending signups, change roles, enable/disable accounts
